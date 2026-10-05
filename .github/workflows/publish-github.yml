@@ -1,0 +1,79 @@
+name: Publish GitHub Packages
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check release tag
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+          assert.equal(manifest.name, '@px-lsp/cli');
+          assert.equal(process.env.GITHUB_REF_NAME, `v${manifest.version}`);
+          assert.equal(process.env.GITHUB_REPOSITORY_OWNER.toLowerCase(), 'jdeffner');
+          NODE
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.22.2
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: "@jdeffner"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run compile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm test
+      - run: pnpm pack --pack-destination .local/artifacts
+      - name: Test npm package
+        shell: bash
+        run: pnpm test:package .local/artifacts/px-lsp-cli-*.tgz
+      - name: Pack GitHub mirror
+        shell: bash
+        run: node scripts/pack-github.mjs .local/artifacts/px-lsp-cli-*.tgz
+      - name: Test GitHub mirror
+        shell: bash
+        run: pnpm test:package .local/artifacts/github/jdeffner-cli-*.tgz
+      - name: Publish GitHub mirror
+        shell: bash
+        run: pnpm publish .local/artifacts/github/jdeffner-cli-*.tgz --registry=https://npm.pkg.github.com --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify registry installation
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { execSync } from 'node:child_process';
+          import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+          const cwd = '.local/registry-check';
+          mkdirSync(cwd, { recursive: true });
+          writeFileSync(`${cwd}/package.json`, JSON.stringify({
+            private: true,
+            dependencies: { '@jdeffner/cli': manifest.version },
+          }));
+          writeFileSync(`${cwd}/pnpm-workspace.yaml`, 'packages: []\n');
+          writeFileSync(`${cwd}/.npmrc`, '@jdeffner:registry=https://npm.pkg.github.com\n');
+          execSync('pnpm install --ignore-scripts', { cwd, stdio: 'inherit', windowsHide: true });
+          const options = { cwd, encoding: 'utf8', timeout: 60_000, windowsHide: true };
+          const version = JSON.parse(execSync('pnpm exec pxtk --version --json', options));
+          assert.deepEqual(version, { schemaVersion: 1, version: manifest.version });
+          assert.ok(execSync('pnpm exec pxtk --help', options).startsWith(`pxtk ${manifest.version} - `));
+          NODE
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -6,14 +6,28 @@ The [project wiki](https://github.com/JDeffner/paradox-toolkit-cli/wiki) covers 
 
 ## Install
 
-Download `px-lsp-cli-0.1.0.tgz` from the [GitHub releases](https://github.com/JDeffner/paradox-toolkit-cli/releases) and install it with `pnpm add -g ./px-lsp-cli-0.1.0.tgz`. Then run `pxtk --version` and `pxtk --help`. Node 22.22.2 or newer is required. This initial release is distributed on GitHub; it is not published to npm.
+Use Node 22.22.2 or newer and pnpm. Install version 0.2.0 from npm:
+
+```sh
+pnpm add -g @px-lsp/cli@0.2.0
+pxtk --version
+pxtk --help
+```
+
+You can also download [px-lsp-cli-0.2.0.tgz](https://github.com/JDeffner/paradox-toolkit-cli/releases/download/v0.2.0/px-lsp-cli-0.2.0.tgz) and [SHA256SUMS.txt](https://github.com/JDeffner/paradox-toolkit-cli/releases/download/v0.2.0/SHA256SUMS.txt) from [v0.2.0](https://github.com/JDeffner/paradox-toolkit-cli/releases/tag/v0.2.0), then install with `pnpm add -g ./px-lsp-cli-0.2.0.tgz`.
+
+GitHub Packages distributes the same `pxtk` executable as `@jdeffner/cli@0.2.0`. It [requires authentication even for public packages](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry#authenticating-to-github-packages); npm is the simpler public install. See [GitHub Packages setup](https://github.com/JDeffner/paradox-toolkit-cli/wiki/Getting-Started#github-packages) for scoped authentication, then install with:
+
+```sh
+pnpm add -g @jdeffner/cli@0.2.0
+```
 
 For a source build:
 
 Requires Node 22.22.2 or newer and pnpm. From this repository:
 
 ```sh
-git clone https://github.com/JDeffner/paradox-toolkit-cli.git
+git clone --branch v0.2.0 https://github.com/JDeffner/paradox-toolkit-cli.git
 cd paradox-toolkit-cli
 pnpm install --frozen-lockfile
 pnpm run compile
@@ -204,7 +218,7 @@ The CLI uses Sharp for headless common-format decoding, encoding and resizing. P
 
 ## Maintain existing content
 
-These workflows are available in the source build. Each new writer requires both `--write` and the `--expect` token from the same reviewed request. Omitting them returns a preview.
+These workflows are included in 0.2.0. Each new writer requires both `--write` and the `--expect` token from the same reviewed request. Omitting them returns a preview.
 
 Synchronize a translation with its source language:
 
@@ -343,7 +357,7 @@ Source labels identify generated dumps, bundled snapshots, or wiki data. They do
 
 The CLI, MCP and JSON result contract is documented in [PROTOCOL.md](docs/PROTOCOL.md). Developer checks live in `test/`; the real CK3 exercise is `scripts/test-pxtk-real.ts`.
 
-The [release audit](docs/AUDIT-2026-10-05.html) records tested behavior, fixed defects, remaining limits and possible CLI additions from the editor Toolkit. The first release has automated CLI and MCP coverage; it does not certify gameplay or every game and platform combination.
+The historical [0.1.0 release audit](docs/AUDIT-2026-10-05.html) records tested behavior, fixed defects, remaining limits and possible CLI additions from the editor Toolkit. The workflow implementation passes [all four CI jobs](https://github.com/JDeffner/paradox-toolkit-cli/actions/runs/37358046470), Windows and Ubuntu with Node 22.22.2 and 24, including 194 tests and installed-package checks. Version 0.2.0 exposes 21 MCP tools. In the real CK3 exercise, Tiger 1.19.0 reports CK3 1.20.0.3 as unsupported, so validation remains incomplete and baselines are refused. A compatible built-in migration with exact old-build game data remains unverified. No migration was applied and gameplay was not tested.
 
 ## Development
 
@@ -353,7 +367,7 @@ pnpm run typecheck
 pnpm run lint
 pnpm test
 pnpm pack --pack-destination .local/artifacts
-pnpm test:package .local/artifacts/px-lsp-cli-0.1.0.tgz
+pnpm test:package .local/artifacts/px-lsp-cli-0.2.0.tgz
 ```
 
 The package test installs the archive in an isolated folder and runs research, writing, image inspection and failure checks. For real CK3 validation, copy `dev-paths.example.json` to ignored `dev-paths.json`, configure the game-data folder and Tiger executable, and run `pnpm test:real`. The equivalent environment variables are `PX_CK3_GAME_PATH`, `PX_CK3_LOGS_PATH` and `PX_CK3_TIGER_PATH`. Game files remain read-only; generated mods and reports stay under `.local/`.

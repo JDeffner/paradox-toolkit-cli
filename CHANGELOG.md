@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 - 2026-10-06
 
+- Distribute `@px-lsp/cli` on npm, `@jdeffner/cli` on GitHub Packages and an installable GitHub release archive. Both registry packages provide `pxtk` and 21 MCP tools.
 - Add translation synchronization, safe symbol renaming and precise definition edits through CLI and MCP, with required preview tokens and source-preservation checks.
 - Add ordered mod conflict reports using the shared composition policy, with explicit unknown winners and coverage limits.
 - Add exact vanilla file or directory-path import and local release staging with `.pxignore`, content hashes and descriptor findings.

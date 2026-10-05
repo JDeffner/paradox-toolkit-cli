@@ -1,6 +1,6 @@
 {
   "name": "paradox-toolkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Look up Paradox game evidence and validate saved mods with pxtk.",
   "author": {
     "name": "Joël Deffner"
