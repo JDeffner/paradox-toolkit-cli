@@ -305,7 +305,14 @@ await writeFile(
   path.join(mod, "common/scripted_effects/conflict.txt"),
   "\uFEFFpacked_conflict = { add_gold = 2 }\n"
 );
-const conflicts = installedRun("conflicts", "--input", parentMod, "--input", mod);
+const conflictProcess = spawnSync(
+  process.execPath,
+  [command, "conflicts", "--input", parentMod, "--input", mod, "--json"],
+  installedOptions
+);
+assert.equal(conflictProcess.status, 1, "An installed conflict report with findings must exit 1.");
+const conflicts = JSON.parse(conflictProcess.stdout);
+assert.equal(conflicts.status, "ok");
 assert.equal(conflicts.data.sourceCount, 2);
 assert.equal(
   conflicts.data.conflicts.items.find((entry) => entry.name === "packed_conflict").contributors.total,
