@@ -293,6 +293,17 @@
                 <code>--</code>.
               </td>
             </tr>
+            <tr>
+              <td>Medium: Linux process ownership</td>
+              <td>
+                The first Ubuntu run failed on an unreadable process executable. The probe took ownership from
+                the process directory, which need not have the executable link's owner.
+              </td>
+              <td>
+                Check ownership of the executable link itself. Keep failures visible when an executable owned
+                by the current user cannot be inspected.
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -405,10 +416,18 @@
       <footer>
         <h2>Sources and reproduction</h2>
         <p>
-          <a href="../README.md">CLI README</a> · <a href="PROTOCOL.md">Public contract</a> ·
-          <a href="../vendor/toolkit-core/manifest.json">Core provenance</a> ·
-          <a href="https://github.com/JDeffner/paradox-toolkit-cli/actions">GitHub checks</a> ·
-          <a href="https://github.com/amtep/tiger/releases/tag/v1.19.0">Tiger release checked</a>
+          <a href="https://github.com/JDeffner/paradox-toolkit-cli/blob/main/README.md">CLI README</a> ·
+          <a href="https://github.com/JDeffner/paradox-toolkit-cli/blob/main/docs/PROTOCOL.md"
+            >Public contract</a
+          >
+          ·
+          <a
+            href="https://github.com/JDeffner/paradox-toolkit-cli/blob/main/vendor/toolkit-core/manifest.json"
+            >Core provenance</a
+          >
+          · <a href="https://github.com/JDeffner/paradox-toolkit-cli/actions">GitHub checks</a> ·
+          <a href="https://github.com/amtep/tiger/releases/tag/v1.19.0">Tiger release checked</a> ·
+          <a href="https://man7.org/linux/man-pages/man5/proc_pid.5.html">Linux process-file ownership</a>
         </p>
         <p>
           Run the checks in <code>AGENTS.md</code>, then <code>pnpm test:real</code> with configured CK3 and

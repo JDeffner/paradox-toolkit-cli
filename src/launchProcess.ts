@@ -55,9 +55,11 @@ export async function runningGamePids(executable: string): Promise<number[]> {
       for (const entry of await fs.readdir("/proc")) {
         if (!/^\d+$/.test(entry)) continue;
         try {
-          // Other users' executables are not inspectable in an ordinary desktop session.
-          if ((await fs.stat(`/proc/${entry}`)).uid !== uid) continue;
-          if (samePath(await fs.realpath(`/proc/${entry}/exe`), target)) matches.push(Number(entry));
+          // Sensitive proc entries become root-owned for nondumpable processes,
+          // even when the PID directory still belongs to the current user.
+          const exe = `/proc/${entry}/exe`;
+          if ((await fs.lstat(exe)).uid !== uid) continue;
+          if (samePath(await fs.realpath(exe), target)) matches.push(Number(entry));
         } catch (error) {
           if (!vanished(error)) throw error;
         }

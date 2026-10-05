@@ -4,7 +4,12 @@ import * as path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { runningGamePids, startGame } from "../src/launchProcess";
 
-const linuxProbe = vi.hoisted(() => ({ enabled: false, inaccessible: false, inspected: [] as string[] }));
+const linuxProbe = vi.hoisted(() => ({
+  enabled: false,
+  inaccessible: false,
+  rootOwnedDirectoryUid: 0,
+  inspected: [] as string[],
+}));
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   return {
@@ -13,8 +18,12 @@ vi.mock("node:fs/promises", async (importOriginal) => {
       linuxProbe.enabled && file === "/proc" ? Promise.resolve(["123", "456"]) : actual.readdir(file),
     stat: (file: string) =>
       linuxProbe.enabled && /^\/proc\/\d+$/.test(file)
-        ? Promise.resolve({ uid: file === "/proc/123" ? 0 : 1000 })
+        ? Promise.resolve({ uid: file === "/proc/123" ? linuxProbe.rootOwnedDirectoryUid : 1000 })
         : actual.stat(file),
+    lstat: (file: string) =>
+      linuxProbe.enabled && /^\/proc\/\d+\/exe$/.test(file)
+        ? Promise.resolve({ uid: file === "/proc/123/exe" ? 0 : 1000 })
+        : actual.lstat(file),
     realpath: async (file: string) => {
       if (linuxProbe.enabled) {
         if (file === "/test-executable") return "/same-game";
@@ -163,23 +172,30 @@ it("reports a missing executable as a probe failure", async () => {
   });
 });
 
-it("checks same-owner Linux executables and reports denied access for that owner", async () => {
-  const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
-  const getuid = Object.getOwnPropertyDescriptor(process, "getuid");
-  Object.defineProperty(process, "platform", { ...platform, value: "linux" });
-  Object.defineProperty(process, "getuid", { configurable: true, value: () => 1000 });
-  linuxProbe.enabled = true;
-  linuxProbe.inspected = [];
-  try {
-    expect(await runningGamePids("/test-executable")).toEqual([456]);
-    expect(linuxProbe.inspected).toEqual(["/proc/456/exe"]);
-    linuxProbe.inaccessible = true;
-    await expect(runningGamePids("/test-executable")).rejects.toMatchObject({ code: "process_probe_failed" });
-  } finally {
-    linuxProbe.enabled = false;
-    linuxProbe.inaccessible = false;
-    Object.defineProperty(process, "platform", platform);
-    if (getuid) Object.defineProperty(process, "getuid", getuid);
-    else Reflect.deleteProperty(process, "getuid");
+it.each([0, 1000])(
+  "skips root-owned executable links with PID directory owner %i and reports same-owner access failures",
+  async (directoryUid) => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    const getuid = Object.getOwnPropertyDescriptor(process, "getuid");
+    Object.defineProperty(process, "platform", { ...platform, value: "linux" });
+    Object.defineProperty(process, "getuid", { configurable: true, value: () => 1000 });
+    linuxProbe.enabled = true;
+    linuxProbe.rootOwnedDirectoryUid = directoryUid;
+    linuxProbe.inspected = [];
+    try {
+      expect(await runningGamePids("/test-executable")).toEqual([456]);
+      expect(linuxProbe.inspected).toEqual(["/proc/456/exe"]);
+      linuxProbe.inaccessible = true;
+      await expect(runningGamePids("/test-executable")).rejects.toMatchObject({
+        code: "process_probe_failed",
+      });
+    } finally {
+      linuxProbe.enabled = false;
+      linuxProbe.inaccessible = false;
+      linuxProbe.rootOwnedDirectoryUid = 0;
+      Object.defineProperty(process, "platform", platform);
+      if (getuid) Object.defineProperty(process, "getuid", getuid);
+      else Reflect.deleteProperty(process, "getuid");
+    }
   }
-});
+);
