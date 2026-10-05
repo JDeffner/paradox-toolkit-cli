@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { createReadStream } from "node:fs";
 import type { PxtkOperation, PxtkResult, PxtkRequest } from "./contract";
 import { type ConfigInput } from "./config";
 import { resolveRequest } from "./resolveRequest";
@@ -15,6 +16,14 @@ Usage:
   pxtk inspect <name> [--kind <kind>] [options]
   pxtk read <file> [--start-line <n>] [--line-count <n>] [--source-hash <hash>] [options]
   pxtk impact <name> [--kind <kind>] [options]
+  pxtk conflicts [--input <mod> ...] [--limit <1..200>] [options]
+  pxtk rename --file <file> --line <n> --column <n> --to <name> [--write --expect <token>]
+  pxtk edit --file <file> --operations <json-file> [--write --expect <token>]
+  pxtk import --source <game-relative-file> | --directory <game-relative-folder> [--write --expect <token>]
+  pxtk package --output <new-folder> [--write --expect <token>]
+  pxtk migrate catalog [--recipe-file <file> --trust <sha256>]
+  pxtk migrate routes --from <build> --to <build>
+  pxtk migrate preview --recipe <id> [--answers <json-file>] [--source-game-path <folder>] [--target-game-path <folder>]
   pxtk validate [--baseline <file>] [--write-baseline <new-file>] [options]
   pxtk mcp [options]
   pxtk playsets --game <id> [options]
@@ -24,6 +33,7 @@ Usage:
   pxtk new <folder> --name <display-name> --game <id> [--supported-version <version>] [--write --expect <token>]
   pxtk create [kind] [name] [--prefix <prefix>] [--stage <stage>] [--write]
   pxtk loc get|set|check [key] [--value <text>] [--file <file>] [--write]
+  pxtk loc sync --source-language <name> --language <name> [--file <source-file>] [--write --expect <token>]
   pxtk logs [read|checkpoint] [--file <log>] [--since <checkpoint>] [--output <new-file>] [--write]
   pxtk format <files...> [--check | --write]
   pxtk image inspect <files-or-folders...>
@@ -46,6 +56,10 @@ Preparation options:
   --start             Start a reviewed launch with --expect; otherwise preview
   --arg=<argument>    Append one exact game argument; repeat for each argument
   --preset <id>       Add a game preset listed by playsets
+  --operations <file> JSON array of setProperties/upsertBlock operations for edit
+  --answers <file>    JSON object of migration question IDs and string/boolean answers
+  --recipe-file <file> Local migration artifact; inspect its hash before using --trust
+  --trust <sha256>    Trust exact local recipe code with host permissions (not sandboxed)
 
 Options:
   --game <id>          Required game selection (or PX_GAME_ID / config)
@@ -64,11 +78,27 @@ Options:
   --version           Show the installed version
 
 Commands read saved files. Utility writes need --write; the default is a preview.
+Rename, edit, import, package and loc sync also require the matching --expect token.
+Migration commands review plans only. Trusted local recipes can execute arbitrary code.
 Vanilla and dependencies are read-only. Image outputs never replace existing files.
 Baselines use exclusive creation and never replace an existing file.
 Exit codes: 0 = success/no new errors, 1 = findings/no match/ambiguity,
 2 = invalid input, incomplete validation, or execution failure.
 `;
+async function jsonArgument(file: string): Promise<unknown> {
+  try {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of createReadStream(file)) {
+      size += chunk.length;
+      if (size > 4 * 1024 * 1024) throw new Error("JSON input exceeds 4 MiB.");
+      chunks.push(chunk as Buffer);
+    }
+    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
+  } catch (error) {
+    throw new ToolError("invalid_arguments", `Cannot read JSON input ${file}: ${errorMessage(error)}`);
+  }
+}
 function human(result: PxtkResult): string {
   const lines = [
     `pxtk ${result.operation}: ${result.status}`,
@@ -139,6 +169,20 @@ async function main(): Promise<void> {
         preset: { type: "string" },
         arg: { type: "string", multiple: true },
         start: { type: "boolean" },
+        input: { type: "string", multiple: true },
+        line: { type: "string" },
+        column: { type: "string" },
+        operations: { type: "string" },
+        source: { type: "string" },
+        directory: { type: "string" },
+        "source-language": { type: "string" },
+        recipe: { type: "string" },
+        "recipe-file": { type: "string" },
+        trust: { type: "string" },
+        from: { type: "string" },
+        "source-game-path": { type: "string" },
+        "target-game-path": { type: "string" },
+        answers: { type: "string" },
       },
     });
     if (parsed.values.version) {
@@ -168,6 +212,12 @@ async function main(): Promise<void> {
         "logs",
         "format",
         "image",
+        "conflicts",
+        "rename",
+        "edit",
+        "import",
+        "package",
+        "migrate",
       ].includes(operation)
     )
       throw new ToolError("unknown_command", `Unknown command: ${operation}. Run pxtk --help.`);
@@ -175,7 +225,7 @@ async function main(): Promise<void> {
       ? 2
       : ["image", "format", "validate", "launch"].includes(operation)
         ? Infinity
-        : ["search", "inspect", "impact", "logs", "read", "new"].includes(operation)
+        : ["search", "inspect", "impact", "logs", "read", "new", "migrate"].includes(operation)
           ? 1
           : 0;
     if (parsed.positionals.length - 1 > maxTerms)
@@ -184,6 +234,10 @@ async function main(): Promise<void> {
         "Unexpected positional argument. Quote search text containing spaces."
       );
     const v = parsed.values;
+    if (v.operations !== undefined && operation !== "edit")
+      throw new ToolError("invalid_arguments", "--operations belongs to edit.");
+    if (v.answers !== undefined && operation !== "migrate")
+      throw new ToolError("invalid_arguments", "--answers belongs to migrate.");
     if (v.kind !== undefined && operation === "create")
       throw new ToolError("invalid_arguments", "create takes its kind as a positional argument, not --kind.");
     if (v.name !== undefined && operation !== "new")
@@ -231,7 +285,7 @@ async function main(): Promise<void> {
       limit: v.limit === undefined ? undefined : Number(v.limit),
       baseline: v.baseline,
       writeBaseline: v["write-baseline"],
-      action: ["loc", "logs", "image"].includes(operation) ? term : undefined,
+      action: ["loc", "logs", "image", "migrate"].includes(operation) ? term : undefined,
       files:
         operation === "image"
           ? extra
@@ -247,7 +301,7 @@ async function main(): Promise<void> {
       prefix: v.prefix,
       stage: v.stage,
       since: v.since,
-      format: v.to as PxtkRequest["format"],
+      format: !["rename", "migrate"].includes(operation) ? (v.to as PxtkRequest["format"]) : undefined,
       dds: v.dds as PxtkRequest["dds"],
       width: v.width === undefined ? undefined : Number(v.width),
       height: v.height === undefined ? undefined : Number(v.height),
@@ -265,6 +319,25 @@ async function main(): Promise<void> {
       preset: v.preset,
       args: operation === "launch" ? [...(v.arg ?? []), ...(term ? [term, ...extra] : [])] : v.arg,
       start: v.start,
+      language: ["loc", "create"].includes(operation) ? v.language : undefined,
+      sourceLanguage: v["source-language"],
+      inputs: v.input,
+      line: v.line === undefined ? undefined : Number(v.line),
+      column: v.column === undefined ? undefined : Number(v.column),
+      to: operation === "rename" ? v.to : undefined,
+      edits:
+        v.operations === undefined ? undefined : ((await jsonArgument(v.operations)) as PxtkRequest["edits"]),
+      source: v.source,
+      directory: v.directory,
+      recipe: v.recipe,
+      recipeFile: v["recipe-file"],
+      trust: v.trust,
+      fromBuild: v.from,
+      toBuild: operation === "migrate" ? v.to : undefined,
+      sourceGamePath: v["source-game-path"],
+      targetGamePath: v["target-game-path"],
+      answers:
+        v.answers === undefined ? undefined : ((await jsonArgument(v.answers)) as PxtkRequest["answers"]),
     };
     const result = await execute(await resolveRequest(configOptions, request), request, {
       signal: controller.signal,

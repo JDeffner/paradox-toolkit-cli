@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, writeFile, access, copyFile } from "node:fs/p
 import path from "node:path";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
+import { createHash } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -28,6 +29,7 @@ for (const file of [
   "LICENSE",
   "THIRD-PARTY-NOTICES.md",
   "dist/lsp/server.js",
+  "dist/migrations/worker.cjs",
   "dist/licenses/dependencies.json",
   "dist/data/ck3/freqs.json",
   "dist/data/vic3/freqs.json",
@@ -206,7 +208,7 @@ try {
     })
   );
   const tools = await client.listTools();
-  assert.equal(tools.tools.length, 15);
+  assert.equal(tools.tools.length, 21);
   assert.ok(tools.tools.every((tool) => tool.outputSchema?.type === "object"));
   assert.ok(tools.tools.some((tool) => tool.name === "pxtk_playsets"));
   const launch = tools.tools.find((tool) => tool.name === "pxtk_launch");
@@ -230,6 +232,143 @@ try {
 } finally {
   await client.close();
 }
+
+// Exercise new workflows from the installed package and its bundled worker.
+const installedRun = (...args) =>
+  JSON.parse(execFileSync(process.execPath, [command, ...args, "--json"], installedOptions));
+await writeFile(
+  path.join(mod, "descriptor.mod"),
+  '\uFEFFname="Packed CLI test"\nversion="1.0"\nsupported_version="*"\ntags={ "Gameplay" }\n'
+);
+await mkdir(path.join(mod, "localization/english"), { recursive: true });
+await writeFile(
+  path.join(mod, "localization/english/packed_l_english.yml"),
+  '\uFEFFl_english:\n packed_text:0 "Packed source"\n'
+);
+const syncArgs = ["loc", "sync", "--source-language", "english", "--language", "german"];
+const syncPreview = installedRun(...syncArgs);
+assert.equal(syncPreview.data.mode, "preview");
+await assert.rejects(access(path.join(mod, "localization/german/packed_l_german.yml")));
+assert.equal(
+  installedRun(...syncArgs, "--write", "--expect", syncPreview.data.previewToken).data.mode,
+  "written"
+);
+assert.match(
+  await readFile(path.join(mod, "localization/german/packed_l_german.yml"), "utf8"),
+  /packed_text:0 ""/
+);
+
+const renameArgs = [
+  "rename",
+  "--file",
+  "common/scripted_effects/probe.txt",
+  "--line",
+  "1",
+  "--column",
+  "1",
+  "--to",
+  "pxtk_packed_renamed",
+];
+const renamePreview = installedRun(...renameArgs);
+assert.equal(renamePreview.data.mode, "preview");
+assert.equal(
+  installedRun(...renameArgs, "--write", "--expect", renamePreview.data.previewToken).data.mode,
+  "written"
+);
+assert.match(
+  await readFile(path.join(mod, "common/scripted_effects/probe.txt"), "utf8"),
+  /pxtk_packed_renamed =/
+);
+const operationsFile = path.join(scratch, "edits.json");
+await writeFile(
+  operationsFile,
+  JSON.stringify([
+    { op: "setProperties", name: "pxtk_packed_renamed", properties: [{ key: "add_gold", value: "3" }] },
+  ])
+);
+const editArgs = ["edit", "--file", "common/scripted_effects/probe.txt", "--operations", operationsFile];
+const editPreview = installedRun(...editArgs);
+assert.equal(
+  installedRun(...editArgs, "--write", "--expect", editPreview.data.previewToken).data.mode,
+  "written"
+);
+assert.match(await readFile(path.join(mod, "common/scripted_effects/probe.txt"), "utf8"), /add_gold = 3/);
+
+const parentMod = path.join(scratch, "parent-mod");
+await mkdir(path.join(parentMod, "common/scripted_effects"), { recursive: true });
+await writeFile(path.join(parentMod, "descriptor.mod"), '\uFEFFname="Packed parent"\n');
+await writeFile(
+  path.join(parentMod, "common/scripted_effects/conflict.txt"),
+  "\uFEFFpacked_conflict = { add_gold = 1 }\n"
+);
+await writeFile(
+  path.join(mod, "common/scripted_effects/conflict.txt"),
+  "\uFEFFpacked_conflict = { add_gold = 2 }\n"
+);
+const conflicts = installedRun("conflicts", "--input", parentMod, "--input", mod);
+assert.equal(conflicts.data.sourceCount, 2);
+assert.equal(
+  conflicts.data.conflicts.items.find((entry) => entry.name === "packed_conflict").contributors.total,
+  2
+);
+
+await mkdir(path.join(gamePath, "common/scripted_effects"), { recursive: true });
+const vanillaFile = path.join(gamePath, "common/scripted_effects/imported.txt");
+await writeFile(vanillaFile, "\uFEFFpacked_vanilla = { }\n");
+const importArgs = ["import", "--source", "common/scripted_effects/imported.txt", "--game-path", gamePath];
+const importPreview = installedRun(...importArgs);
+assert.equal(importPreview.data.mode, "preview");
+assert.equal(
+  installedRun(...importArgs, "--write", "--expect", importPreview.data.previewToken).data.mode,
+  "written"
+);
+assert.deepEqual(
+  await readFile(path.join(mod, "common/scripted_effects/imported.txt")),
+  await readFile(vanillaFile)
+);
+
+const migrationCatalog = installedRun("migrate", "catalog");
+assert.ok(migrationCatalog.data.catalog.items.length);
+const firstRecipe = migrationCatalog.data.catalog.items[0];
+assert.ok(
+  installedRun("migrate", "routes", "--from", firstRecipe.fromVersion, "--to", firstRecipe.toVersion).data
+    .routes.items.length
+);
+const recipeFile = path.join(mod, ".px-toolkit/fixture.cjs");
+const recipeCode = `module.exports={manifest:{id:'fixture.setting',revision:'1',sdkVersion:1,gameId:'ck3',fromVersion:'1.0.0',toVersion:'1.1.0',kind:'recipe',detection:'script',requirement:'required',title:'Fixture',description:'Test fixture',guidance:'Fixture only',limitations:['No runtime verification'],dependsOn:[],evidence:['Synthetic fixture'],inputs:[{root:'mod',path:'common'}]},inspect(){return {applicability:'applicable',findings:[],questions:[],coverage:['Fixture only']};},prepare(ctx){const text=ctx.readText('mod','common/test.txt');const start=text.indexOf('yes');return {groups:[{id:'setting',title:'Setting',dependsOn:[],changes:[{kind:'text',path:'common/test.txt',edits:[{start,end:start+3,text:'no'}]}]}],checks:[],unresolved:[]};}};`;
+await writeFile(recipeFile, recipeCode);
+await writeFile(path.join(mod, "common/test.txt"), "\uFEFFsetting = yes\n");
+const migration = installedRun(
+  "migrate",
+  "preview",
+  "--recipe",
+  "fixture.setting",
+  "--recipe-file",
+  recipeFile,
+  "--trust",
+  createHash("sha256").update(recipeCode).digest("hex")
+);
+assert.equal(migration.data.prepared, true);
+assert.equal(migration.data.plan.files.items[0].after.content, "\uFEFFsetting = no\n");
+assert.equal(await readFile(path.join(mod, "common/test.txt"), "utf8"), "\uFEFFsetting = yes\n");
+
+await mkdir(path.join(mod, ".vscode"));
+await writeFile(path.join(mod, ".vscode/settings.json"), "{}");
+const release = path.join(scratch, "release");
+const packageArgs = ["package", "--output", release];
+const packagePreview = installedRun(...packageArgs);
+assert.equal(packagePreview.data.ready, true);
+await assert.rejects(access(release));
+assert.equal(
+  installedRun(...packageArgs, "--write", "--expect", packagePreview.data.previewToken).data.mode,
+  "written"
+);
+assert.deepEqual(
+  await readFile(path.join(release, "descriptor.mod")),
+  await readFile(path.join(mod, "descriptor.mod"))
+);
+await assert.rejects(access(path.join(release, ".vscode")));
+await assert.rejects(access(path.join(release, ".px-toolkit")));
 console.log(
   `Packed pxtk ${manifest.version}: executable, LSP, all games' data, licenses and plugin verified in ${scratch}`
 );

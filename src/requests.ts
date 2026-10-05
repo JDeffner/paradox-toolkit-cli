@@ -163,6 +163,129 @@ export const definitions: Array<{
     },
   },
   {
+    operation: "conflicts",
+    description:
+      "Report conflicts, replace paths and dependency-order issues across an ordered mod set. Uses the shared game composition policy; never generates or writes a patch.",
+    schema: {
+      inputs: z
+        .array(text)
+        .min(1)
+        .max(200)
+        .optional()
+        .describe(
+          "Mod folders in load order, first loaded first. Omit to use configured parents followed by the editable mod."
+        ),
+      limit,
+    },
+  },
+  {
+    operation: "rename",
+    description:
+      "Preview a symbol rename through the shared language server. Positions are 1-based UTF-16. Refuses edits outside the editable mod and requires the preview token to apply. Dynamic references can be missed.",
+    schema: {
+      file: text.describe("Saved source file inside the editable mod."),
+      line: z.number().int().positive().describe("Symbol line, 1-based."),
+      column: z.number().int().positive().describe("Symbol UTF-16 column, 1-based."),
+      to: text.describe("New identifier."),
+      ...write,
+    },
+    writes: true,
+  },
+  {
+    operation: "edit",
+    description:
+      "Preview precise definition edits while preserving neighboring source and comments. Property values and block text are script source. A refused operation rejects the batch; applying requires the preview token.",
+    schema: {
+      file: text.describe("Saved script file inside the editable mod."),
+      edits: z
+        .array(
+          z.discriminatedUnion("op", [
+            z.strictObject({
+              op: z.literal("setProperties"),
+              name: text,
+              properties: z
+                .array(z.strictObject({ key: text, value: z.string().max(1_000_000).nullable() }))
+                .min(1)
+                .max(1000),
+            }),
+            z.strictObject({ op: z.literal("upsertBlock"), name: text, text: text.max(1_000_000) }),
+          ])
+        )
+        .min(1)
+        .max(200)
+        .describe("Ordered shared definition operations: setProperties or upsertBlock."),
+      ...write,
+    },
+    writes: true,
+  },
+  {
+    operation: "import",
+    description:
+      "Preview copying one exact vanilla file into the same mod-relative path, or creating one directory path. Never recursively copies a directory or replaces existing content. Apply with the preview token.",
+    schema: {
+      source: text.optional().describe("Game-relative source file. Mutually exclusive with directory."),
+      directory: text
+        .optional()
+        .describe(
+          "Existing game-relative directory whose path to create in the mod. No child content is copied."
+        ),
+      ...write,
+    },
+    writes: true,
+  },
+  {
+    operation: "package",
+    description:
+      "Preview a local mod release directory with file hashes, exclusions and metadata findings. Applies .pxignore policy. Explicit write with the preview token creates an absent output directory; does not upload to Steam.",
+    schema: {
+      output: text.describe(
+        "New output directory outside the mod, game and dependencies, with an existing parent."
+      ),
+      limit,
+      ...write,
+    },
+    writes: true,
+  },
+  {
+    operation: "migrate",
+    description:
+      "Discover migration entries, query exact-build routes, or preview a recipe. Does not apply plans. Local recipe code requires its exact SHA-256 in trust and runs with host permissions, without a sandbox.",
+    schema: {
+      action: z
+        .enum(["catalog", "routes", "preview"])
+        .optional()
+        .describe("catalog (default), routes, or preview."),
+      recipe: text.optional().describe("Migration entry ID from the catalog."),
+      recipeFile: text
+        .optional()
+        .describe(
+          "Local recipe artifact. Without trust, only its hash and size are inspected; code is not executed."
+        ),
+      trust: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional()
+        .describe(
+          "Explicitly trusted SHA-256 of the local recipe artifact. Local code has host permissions."
+        ),
+      fromBuild: text.optional().describe("Exact source game build, as listed by the catalog."),
+      toBuild: text.optional().describe("Exact target game build, as listed by the catalog."),
+      sourceGamePath: text
+        .optional()
+        .describe("Explicit read-only source game-data directory for recipe evidence."),
+      targetGamePath: text
+        .optional()
+        .describe("Read-only target game-data directory; defaults to configured gamePath."),
+      answers: z
+        .record(z.string(), z.union([z.string(), z.boolean()]))
+        .optional()
+        .describe("Answers keyed by recipe question ID."),
+      limit,
+    },
+    writes: true,
+    openWorld: true,
+  },
+  {
     operation: "validate",
     description:
       "Validate saved files. Optional files focus structural checks; Tiger still checks the whole mod. Missing validation is explicit.",
@@ -233,9 +356,16 @@ export const definitions: Array<{
       "Get localization with sources, check language coverage, or preview a key update. Explicit write updates mod files and preserves unrelated content.",
     schema: {
       action: z
-        .enum(["get", "set", "check"])
+        .enum(["get", "set", "check", "sync"])
         .optional()
-        .describe("get reads a key, set previews an edit, check reports language coverage (default)."),
+        .describe(
+          "get reads a key, set previews an edit, check reports coverage (default), sync adds missing translation entries without changing translated values."
+        ),
+      sourceLanguage: z
+        .string()
+        .regex(/^[a-z_]+$/)
+        .optional()
+        .describe("Required source language for sync. Must differ from the target language."),
       name: text.optional().describe("Localization key for get/set."),
       value: z
         .string()
@@ -330,10 +460,36 @@ export function validateRequest(request: PxtkRequest): void {
   if (request.baseline && request.writeBaseline)
     throw new ToolError("invalid_arguments", "Choose baseline comparison or baseline creation.");
   const readOnly =
-    (request.operation === "loc" && request.action !== "set") ||
+    (request.operation === "loc" && !["set", "sync"].includes(request.action ?? "check")) ||
     (request.operation === "image" && request.action !== "convert") ||
     (request.operation === "logs" && request.action !== "checkpoint") ||
     (request.operation === "create" && !request.kind);
   if (readOnly && (request.write || request.expect))
     throw new ToolError("invalid_arguments", "This action does not write files.");
+  const guarded =
+    ["rename", "edit", "import", "package"].includes(request.operation) ||
+    (request.operation === "loc" && request.action === "sync");
+  if (guarded && request.write && !request.expect)
+    throw new ToolError(
+      "preview_required",
+      "Preview these changes first, then apply with write and the matching expect token."
+    );
+  if (request.operation === "import" && Boolean(request.source) === Boolean(request.directory))
+    throw new ToolError("invalid_arguments", "Choose exactly one source file or directory path.");
+  if (request.operation === "loc") {
+    if (request.action === "sync") {
+      if (!request.sourceLanguage || !request.language || request.sourceLanguage === request.language)
+        throw new ToolError(
+          "invalid_arguments",
+          "sync requires different sourceLanguage and language values."
+        );
+      if ([request.name, request.value, request.stage, request.limit].some((value) => value !== undefined))
+        throw new ToolError(
+          "invalid_arguments",
+          "sync accepts sourceLanguage, language, optional file, write and expect."
+        );
+    } else if (request.sourceLanguage !== undefined) {
+      throw new ToolError("invalid_arguments", "sourceLanguage belongs to loc sync.");
+    }
+  }
 }

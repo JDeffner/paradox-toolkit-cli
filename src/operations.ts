@@ -22,6 +22,12 @@ import { validateRequest } from "./requests";
 import { readSourcePage } from "./source";
 import { createMod } from "./newMod";
 import { launchGame, listPlaysets } from "./launch";
+import { reportConflicts } from "./conflicts";
+import { syncLocalization } from "./translation";
+import { renameSymbol, editDefinition } from "./editing";
+import { importVanilla } from "./importing";
+import { packageMod } from "./packaging";
+import { migrationReport } from "./migrations";
 
 function sources(config: Configuration, session?: LspSession): PxtkSources {
   const status = session?.status;
@@ -102,7 +108,38 @@ export async function execute(
   const limit = request.limit ?? 20;
   if (!Number.isInteger(limit) || limit < 1 || limit > 200)
     throw new ToolError("invalid_limit", "limit must be an integer from 1 to 200.");
-  if (request.operation !== "status") requireWorkspace(config);
+  const standaloneQuery =
+    (request.operation === "migrate" && request.action !== "preview") ||
+    (request.operation === "conflicts" && request.inputs !== undefined);
+  if (request.operation !== "status" && !standaloneQuery) requireWorkspace(config);
+  const workflow =
+    request.operation === "conflicts"
+      ? reportConflicts
+      : request.operation === "rename"
+        ? renameSymbol
+        : request.operation === "edit"
+          ? editDefinition
+          : request.operation === "import"
+            ? importVanilla
+            : request.operation === "package"
+              ? packageMod
+              : request.operation === "migrate"
+                ? migrationReport
+                : request.operation === "loc" && request.action === "sync"
+                  ? syncLocalization
+                  : null;
+  if (workflow) {
+    const out = result(config, request);
+    out.data = await workflow(config, request, options.signal);
+    if (
+      out.data.supported === false ||
+      out.data.trustRequired === true ||
+      out.data.ready === false ||
+      (Array.isArray(out.data.blockedReasons) && out.data.blockedReasons.length > 0)
+    )
+      out.status = "incomplete";
+    return out;
+  }
   if (request.operation === "new" || request.operation === "read") {
     const out = result(config, request);
     out.data =
@@ -395,5 +432,10 @@ export function exitCode(result: PxtkResult): number {
   if (result.operation === "format" && result.data.mode === "check" && Number(result.data.changed) > 0)
     return 1;
   if (result.operation === "loc" && Number(result.data.issues) > 0) return 1;
+  if (result.operation === "conflicts") {
+    const conflicts = result.data.conflicts as { total: number };
+    const issues = result.data.issues as { total: number };
+    if (conflicts.total > 0 || issues.total > 0) return 1;
+  }
   return result.operation === "validate" && Number(result.data.newErrors) > 0 ? 1 : 0;
 }

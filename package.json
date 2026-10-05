@@ -45,14 +45,15 @@
     "prepack": "pnpm run compile"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@px-lsp/protocol": "file:vendor/toolkit-core/protocol.tgz",
     "@px-lsp/server": "file:vendor/toolkit-core/server.tgz",
-    "@eslint/js": "^9.39.5",
     "@types/node": "^26.1.0",
     "esbuild": "^0.28.0",
     "eslint": "^9.39.5",
     "globals": "^17.7.0",
+    "ignore": "7.0.5",
     "prettier": "^3.9.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.65.0",

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Add translation synchronization, safe symbol renaming and precise definition edits through CLI and MCP, with required preview tokens and source-preservation checks.
+- Add ordered mod conflict reports using the shared composition policy, with explicit unknown winners and coverage limits.
+- Add exact vanilla file or directory-path import and local release staging with `.pxignore`, content hashes and descriptor findings.
+- Add migration catalogs, exact-build routes and recipe previews. Local code requires explicit hash trust; workers capture diagnostics and stop on cancellation. Migration plans are not applied.
+- Bundle the migration worker and the Toolkit's ignore-pattern dependency in standalone packages, with installed-package and real-client workflow checks.
+- Refresh the shared core to support renaming localization declarations and to execute the exact trusted CommonJS recipe bytes. Recheck source inputs during multi-file writes and report interrupted copies explicitly.
+
 ## 0.1.0 - 2026-10-05
 
 - Reject unknown MCP input fields, keep help and version output machine-readable with `--json`, and report ignored or malformed CLI arguments.

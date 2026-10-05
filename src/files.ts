@@ -49,16 +49,21 @@ export async function contentFiles(root: string): Promise<string[]> {
   return out.sort();
 }
 /** Exact editable-input fingerprint; disk writes during a query invalidate its result. */
-export async function fingerprint(root: string): Promise<string> {
+export async function fingerprint(
+  root: string,
+  originalBytes: ReadonlyMap<string, Buffer | null> = new Map()
+): Promise<string> {
   const hash = createHash("sha256");
   for (const file of await contentFiles(root)) {
-    const bytes = await fs.readFile(file);
+    const bytes = originalBytes.has(file) ? originalBytes.get(file)! : await fs.readFile(file);
+    if (bytes === null) continue;
     hash.update(JSON.stringify([path.relative(root, file), bytes.length]));
     hash.update(bytes);
   }
   const metadata = path.join(root, ".metadata/metadata.json");
   try {
-    hash.update(await fs.readFile(metadata));
+    const bytes = originalBytes.has(metadata) ? originalBytes.get(metadata)! : await fs.readFile(metadata);
+    if (bytes !== null) hash.update(bytes);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }

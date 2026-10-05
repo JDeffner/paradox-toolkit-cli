@@ -171,6 +171,92 @@ const data: Record<PxtkOperation, z.ZodType> = {
       coverage: record,
     }),
   ]),
+  conflicts: z.object({
+    supported: z.boolean(),
+    game: z.string(),
+    inputOrder: z.literal("first-loaded-first"),
+    inputs: z.array(
+      z.object({
+        id: z.string(),
+        path: z.string(),
+        name: z.string(),
+        version: z.string().nullable(),
+        replacePaths: window(z.string()),
+        dependencies: window(z.string()),
+      })
+    ),
+    sourceFingerprint: hash.nullable(),
+    sourceCount: count,
+    fileCount: count,
+    conflicts: window(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        kind: z.string(),
+        state: z.string(),
+        fingerprint: hash,
+        explanation: z.string(),
+        winner: z.string().nullable(),
+        contributors: window(record),
+        issues: window(z.string()),
+      })
+    ),
+    issues: window(z.string()),
+    coverage: record,
+  }),
+  rename: write.extend({
+    edits: z.array(
+      z.object({
+        file: z.string(),
+        edits: z.array(z.object({ start: count, end: count, newText: z.string() })),
+      })
+    ),
+    coverage: record,
+  }),
+  edit: write.extend({
+    edits: z.array(
+      z.object({
+        file: z.string(),
+        edits: z.array(z.object({ start: count, end: count, newText: z.string() })),
+      })
+    ),
+    coverage: record,
+  }),
+  import: write.extend({
+    source: z.string(),
+    destination: z.string(),
+    kind: z.enum(["file", "directory"]),
+    folders: strings,
+  }),
+  package: z
+    .object({
+      mode: z.enum(["preview", "written"]),
+      previewToken: hash,
+      destination: z.string(),
+      included: window(z.object({ file: z.string(), bytes: count, sha256: hash })),
+      excluded: window(z.object({ file: z.string(), reason: z.string() })),
+      findings: window(record),
+      totalFiles: count,
+      totalBytes: count,
+      ready: z.boolean(),
+      changed: count,
+      written: strings,
+    })
+    .passthrough(),
+  migrate: z
+    .object({
+      action: z.enum(["catalog", "routes", "preview"]),
+      mode: z.enum(["read", "preview"]),
+      gameplayTested: z.literal(false),
+      trustRequired: z.boolean().optional(),
+      catalog: window(record).optional(),
+      routes: window(record).optional(),
+      versions: strings.optional(),
+      issues: strings.optional(),
+      blockedReasons: strings.optional(),
+      prepared: z.boolean().optional(),
+    })
+    .passthrough(),
   validate: z.object({
     complete: z.boolean(),
     scope: z.object({

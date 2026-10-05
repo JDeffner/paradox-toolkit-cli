@@ -2,6 +2,34 @@
 
 The base types live in `@px-lsp/protocol/agentTools`. The standalone CLI owns additive operations and fields in `src/contract.ts`, request definitions in `src/requests.ts`, and MCP output schemas in `src/responses.ts`. Shared language-service types and game knowledge remain upstream. The [Toolkit protocol reference](https://github.com/JDeffner/paradox-modding-toolkit/blob/main/docs/PROTOCOL.md) documents the underlying LSP methods.
 
+## Additional workflows
+
+The CLI and MCP expose 21 operations. The additions below preserve the base envelope. New writers (`rename`, `edit`, `import`, `package`, and `loc` with `action: "sync"`) require `expect` when `write` is true. Unknown fields are rejected. CLI JSON argument files are UTF-8 and limited to 4 MiB.
+
+| Operation | Request fields                                                                                                                                             | Result data                                                                                                                                               |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| conflicts | Optional `inputs` (1 to 200 ordered mod paths), `limit`                                                                                                    | `supported`, `game`, `inputOrder`, ordered `inputs`, `sourceFingerprint`, counts, bounded `conflicts` and `issues`, `coverage`.                           |
+| rename    | `file`, `line`, `column`, `to`; optional `write`, `expect`                                                                                                 | Standard write result plus `from`, `to`, exact per-file `edits`, and `coverage`.                                                                          |
+| edit      | `file`, `edits`; optional `write`, `expect`                                                                                                                | Standard write result plus per-file `edits`, per-operation `ops`, and `coverage`.                                                                         |
+| import    | Exactly one `source` file or `directory` path; optional `write`, `expect`                                                                                  | Standard write result plus `source`, `destination`, `kind`, and `folders`. Directory import has an empty `files` array.                                   |
+| package   | `output`; optional `limit`, `write`, `expect`                                                                                                              | `mode`, `previewToken`, `destination`, `changed`, `written`, `ready`, totals, and bounded `included`, `excluded`, `findings`.                             |
+| migrate   | `action`: catalog/routes/preview; optional `recipe`, `recipeFile`, `trust`, `fromBuild`, `toBuild`, `sourceGamePath`, `targetGamePath`, `answers`, `limit` | Read/preview result with trust state, bounded catalog/routes, installation evidence, inspection, blockers and optional prepared plan. No apply operation. |
+| loc sync  | `action: "sync"`, `sourceLanguage`, target `language`; optional source `file`, `write`, `expect`                                                           | Standard write result plus `sourceLanguage`, `targetLanguage`, `addedKeys`, and source/target `mappings`.                                                 |
+
+Conflict inputs are first loaded first; omitted inputs use configured parents then the editable mod. Vanilla is not included. Explicit inputs require only game configuration. The shared profile must define a composition policy; unsupported profiles return `incomplete`. Each conflict includes `id`, `name`, `kind`, `state`, `fingerprint`, `explanation`, nullable `winner`, bounded `contributors` and `issues`. No winner is inferred for unverified precedence. Binary inventory is not a content hash. Exit 1 reports conflicts or composition issues, including identical overlaps. The core capture API requires a disjoint existing host boundary, so source roots overlapping the Node executable directory are refused.
+
+Rename `line` and `column` are 1-based UTF-16 coordinates. Exact returned edit offsets are 0-based UTF-16 into the original BOM-free decoded text: `{file, edits:[{start,end,newText}]}`. Any outside-mod edit, provider refusal, collision, invalid range or stale indexed input rejects the operation. Dynamic reference coverage remains limited. The identity includes mod/dependency content and configuration; vanilla is identified by installation and version. Script/localization outputs use UTF-8 with BOM while retaining unrelated text and line endings.
+
+Definition `edits` uses the shared `DefinitionOp` union: `{op:"setProperties",name,properties:[{key,value}]}` or `{op:"upsertBlock",name,text}`. Values are raw script strings; `null` deletes a property. CLI `--operations <file>` loads the array. MCP accepts it directly as `edits`. A refused operation or invalid resulting script rejects the entire batch.
+
+Translation sync requires different explicit source and target languages. It mirrors source-language paths, respects profile stage roots, adds blank entries with source comments, and preserves existing translated values anywhere in the target-language mod. It rejects ambiguous keys, malformed localization and generated source/destination files. Source and target inventories bind the preview token. This operation does not translate text.
+
+Import `source` and `directory` are game-relative paths without traversal. File import preserves exact saved bytes. Directory import creates only the selected path and parents. Existing destinations and linked paths are refused. Package `output` resolves from the process working directory and must be absent, outside every source root, with an existing parent. Staging honors `.pxignore` defaults or its complete custom replacement, mandatory Toolkit exclusions and retained descriptor metadata. Included entries carry `{file,bytes,sha256}`; exclusions carry `{file,reason}`; findings carry `{level,file,message}`. Descriptor errors yield `ready:false`, an incomplete preview, and block writes. Staging never uploads or certifies Workshop/gameplay acceptance. Write failures report partial outputs.
+
+Migration catalog/routes require only game configuration. Routes require exact `fromBuild` and `toBuild`. Preview requires an editable mod and a selected entry; required reference installations must have detected matching builds. CLI `--from` and `--to` map to build fields, `--recipe-file` maps to `recipeFile`, and `--answers <file>` loads a string/boolean answer object. Local artifact paths resolve from the configured mod. Without `trust`, only the artifact bytes/hash are read and `trustRequired:true` returns incomplete. `trust` must match the artifact SHA-256 before any code is loaded.
+
+Migration results use `action`, `mode:"read"|"preview"`, `trustRequired`, `prepared`, `gameplayTested:false`, and bounded worker `diagnostics`. Preview adds `manifest`, `recipeCodeHash`, `references`, inspection/questions/answer results, `snapshotHash`, `blockedReasons`, and a `plan` when prepared. Plan files are paged; before/after values carry hashes, byte counts, UTF-8 or base64 content, and `contentTruncated` after 16,000 characters. A prepared plan is a proposal and does not establish gameplay compatibility. Local trusted code has host permissions, including filesystem/network access; the worker is not a sandbox. The MCP migration tool therefore declares `readOnlyHint:false`, `destructiveHint:true` and `openWorldHint:true`. The adapter never applies plans, captures worker output instead of writing it to stdout, and terminates workers on completion, cancellation or timeout.
+
 ## pxtk CLI and MCP
 
 The `pxtk` command and local MCP implementation are maintained in the separate `paradox-toolkit-cli` project. CLI and MCP use the same additive contract and `schemaVersion: 1` envelope.
@@ -10,7 +38,7 @@ MCP input objects are strict. Unknown fields, including misspelled write or prev
 
 Preparation operations extend the core queries with new, init, create, loc, logs, format and image. All are available through the CLI and matching `pxtk_*` MCP tools. CLI `--to` maps to the image request's `format` field. Common preparation write arguments are `write` (default false) and `expect` (a preview token).
 
-Launcher operations are playsets and launch, bringing the total to 15 operations. Playsets takes no request fields and reads saved launcher playsets without an editable mod. Launch accepts optional `playset` (exact ID or unique name), `preset` (profile preset ID), `args` (array of literal arguments), `start` (default false), and `expect`. CLI equivalents are `--playset`, `--preset`, repeated `--arg=<argument>` or arguments after `--`, and `--start --expect <token>`. Configuration selects the game, installation and optional `userDataPath`; CLI `--user-data-path` or `PX_<GAME>_USER_DATA_PATH` can override that folder.
+Launcher operations are playsets and launch, alongside the content and research operations. Playsets takes no request fields and reads saved launcher playsets without an editable mod. Launch accepts optional `playset` (exact ID or unique name), `preset` (profile preset ID), `args` (array of literal arguments), `start` (default false), and `expect`. CLI equivalents are `--playset`, `--preset`, repeated `--arg=<argument>` or arguments after `--`, and `--start --expect <token>`. Configuration selects the game, installation and optional `userDataPath`; CLI `--user-data-path` or `PX_<GAME>_USER_DATA_PATH` can override that folder.
 
 Playsets data is `{ settingsFile, userDataPath, databasePath, loadSettingsFile, presets, playsets }`. Presets contain `{ id, label, args }`. Each playset contains `{ id, name, active, loadOrder, mods, disabledDlcs }`. Mods retain saved order and contain `{ id, name, enabled, position, path, registryId, status, archivePath }`; path, registryId and archivePath can be null. Position can be a number or string.
 
@@ -27,7 +55,7 @@ Alternate userDataPath folders can be inspected, but launch requires a canonical
 | new       | output, name; optional supportedVersion, write, expect                                                                   | New mod descriptor/metadata, profile-derived folders and toolkit configuration; no launcher registration.        |
 | init      | Optional write, expect                                                                                                   | Exclusive configuration creation for an existing mod.                                                            |
 | create    | Optional kind, name, prefix, stage, language, write, expect                                                              | No kind lists profile-supported templates. A selected kind previews or writes script and localization files.     |
-| loc       | action: get/set/check; optional name, value, file, stage, language, limit, write, expect                                 | Lookup sources, bounded language coverage or a localization edit proposal. Only set writes.                      |
+| loc       | action: get/set/check/sync; optional name, value, file, stage, language, limit, write, expect                            | Lookup sources, bounded language coverage or a localization edit proposal. Set and sync can write.               |
 | logs      | action: read/checkpoint; optional file, since, output, limit, write, expect                                              | Grouped records, rotation status, pending bytes and checkpoint metadata. Only checkpoint creates an output file. |
 | format    | files array; optional check, write, expect                                                                               | Conservative indentation edits and changed count.                                                                |
 | image     | action: inspect/convert; files array; optional output, format, dds, width, height, fit, background, limit, write, expect | Image metadata or conversion results. Only convert writes.                                                       |
@@ -55,6 +83,12 @@ interface PxtkResult<Data = Record<string, unknown>> {
     | "inspect"
     | "read"
     | "impact"
+    | "conflicts"
+    | "rename"
+    | "edit"
+    | "import"
+    | "package"
+    | "migrate"
     | "validate"
     | "playsets"
     | "launch"

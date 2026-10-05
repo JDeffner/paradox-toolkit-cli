@@ -1,8 +1,13 @@
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { resolveConfig } from "../src/config";
 import { finishChanges } from "../src/writes";
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...actual, rename: vi.fn(actual.rename) };
+});
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -70,4 +75,66 @@ it("rechecks the canonical read-only roots after configuration resolution", asyn
   } finally {
     await fs.unlink(parent);
   }
+});
+
+it.each([1, 2])("reports a changed source after a commit in a %i-file write", async (count) => {
+  const { mod, config } = await fixture();
+  const source = path.join(mod, "source.txt");
+  await fs.writeFile(source, "original source");
+  const changes = Array.from({ length: count }, (_, index) => ({
+    file: path.join(mod, `output-${index}.txt`),
+    before: Buffer.from("before"),
+    after: Buffer.from("after"),
+  }));
+  for (const change of changes) await fs.writeFile(change.file, change.before);
+  const inputs = [{ file: source, bytes: Buffer.from("original source") }];
+  const preview = await finishChanges(config, { operation: "format" }, changes, inputs);
+  const actual = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
+  vi.mocked(fs.rename).mockImplementationOnce(async (from, to) => {
+    await actual.rename(from, to);
+    await fs.writeFile(source, "concurrent edit");
+  });
+  await expect(
+    finishChanges(
+      config,
+      {
+        operation: "format",
+        write: true,
+        expect: String(preview.previewToken),
+      },
+      changes,
+      inputs
+    )
+  ).rejects.toMatchObject({
+    code: "write_failed",
+    message: expect.stringContaining("Completed files: " + JSON.stringify([changes[0].file])),
+  });
+  expect(await fs.readFile(source, "utf8")).toBe("concurrent edit");
+  expect(await fs.readFile(changes[0].file, "utf8")).toBe("after");
+  if (count === 2) expect(await fs.readFile(changes[1].file, "utf8")).toBe("before");
+  expect((await fs.readdir(mod)).some((name) => name.startsWith(".pxtk-"))).toBe(false);
+});
+
+it("allows owned updates and creations that are also captured inputs", async () => {
+  const { mod, config } = await fixture();
+  const changes = [
+    { file: path.join(mod, "existing.txt"), before: Buffer.from("before"), after: Buffer.from("after") },
+    { file: path.join(mod, "new.txt"), before: null, after: Buffer.from("created") },
+  ];
+  await fs.writeFile(changes[0].file, "before");
+  const inputs = changes.map((change) => ({ file: change.file, bytes: change.before }));
+  const preview = await finishChanges(config, { operation: "format" }, changes, inputs);
+  expect(
+    await finishChanges(
+      config,
+      {
+        operation: "format",
+        write: true,
+        expect: String(preview.previewToken),
+      },
+      changes,
+      inputs
+    )
+  ).toMatchObject({ mode: "written", written: changes.map((change) => change.file) });
+  for (const change of changes) expect(await fs.readFile(change.file)).toEqual(change.after);
 });

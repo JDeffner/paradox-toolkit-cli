@@ -51,6 +51,16 @@ const lsp = await build({
   target: "node22",
   metafile: true,
 });
+const migrations = await build({
+  absWorkingDir: root,
+  entryPoints: ["src/migrationWorker.ts"],
+  outfile: path.join(dist, "migrations/worker.cjs"),
+  bundle: true,
+  platform: "node",
+  format: "cjs",
+  target: "node22",
+  metafile: true,
+});
 await cp(path.join(server, "data"), path.join(dist, "data"), { recursive: true });
 await cp(path.join(server, "media"), path.join(dist, "media"), { recursive: true });
 await cp(path.join(server, "THIRD-PARTY-NOTICES.md"), path.join(dist, "lsp/THIRD-PARTY-NOTICES.md"));
@@ -58,7 +68,11 @@ await cp(path.join(snapshotDir, "manifest.json"), path.join(dist, "toolkit-core.
 // Ship license texts for every package whose code esbuild included, including
 // transitive dependencies. Native sharp stays an installed runtime dependency.
 const dependencies = new Map();
-for (const file of [...Object.keys(cli.metafile.inputs), ...Object.keys(lsp.metafile.inputs)]) {
+for (const file of [
+  ...Object.keys(cli.metafile.inputs),
+  ...Object.keys(lsp.metafile.inputs),
+  ...Object.keys(migrations.metafile.inputs),
+]) {
   if (!file.replaceAll("\\", "/").includes("node_modules/")) continue;
   let dir = path.dirname(path.resolve(root, file));
   while (dir !== path.dirname(dir)) {
@@ -84,7 +98,7 @@ const licenses = path.join(dist, "licenses");
 await mkdir(licenses, { recursive: true });
 for (const dependency of dependencies.values()) {
   const files = (await readdir(dependency.dir)).filter((name) =>
-    /^(license|licence|copying)(\.|$)/i.test(name)
+    /^(license|licence|copying)([.-]|$)/i.test(name)
   );
   if (!files.length) throw new Error(`No license file for bundled dependency ${dependency.name}`);
   const target = path.join(licenses, dependency.name.replaceAll("/", "__"));

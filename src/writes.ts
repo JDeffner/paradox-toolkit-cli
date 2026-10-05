@@ -92,7 +92,8 @@ export async function finishChanges(
   request: PxtkRequest,
   proposed: Change[],
   inputs: InputSnapshot[] = [],
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  options: { identity?: string; assertUnchanged?: (applied: readonly Change[]) => Promise<void> } = {}
 ): Promise<Record<string, unknown>> {
   const changes = proposed.filter((change) => !change.before?.equals(change.after));
   const names = changes.map((change) => change.file.toLowerCase());
@@ -102,23 +103,29 @@ export async function finishChanges(
     JSON.stringify({
       changes: changes.map((c) => [c.file, c.before && digest(c.before), digest(c.after)]),
       inputs: inputs.map((s) => [s.file, s.bytes === null ? null : digest(s.bytes)]),
+      ...(options.identity === undefined ? {} : { identity: options.identity }),
     })
   );
   if (request.expect && request.expect !== token)
     throw new ToolError("stale_preview", "Inputs or options changed. Generate a fresh preview.");
+  const applied: Change[] = [];
+  const expectedOutputs = new Map<string, Buffer>();
   const assertCurrent = async () => {
     signal?.throwIfAborted();
     for (const input of inputs) {
       const current = await readOptional(input.file);
-      if (current === null ? input.bytes !== null : input.bytes === null || !current.equals(input.bytes))
+      const expected = expectedOutputs.get(input.file) ?? input.bytes;
+      if (current === null ? expected !== null : expected === null || !current.equals(expected))
         throw new ToolError("stale_preview", "Source changed: " + input.file);
     }
     for (const change of changes) {
       await targetPath(config, change.file);
       const current = await readOptional(change.file);
-      if (current === null ? change.before !== null : !change.before?.equals(current))
+      const expected = expectedOutputs.get(change.file) ?? change.before;
+      if (current === null ? expected !== null : !expected?.equals(current))
         throw new ToolError("stale_preview", "Destination changed: " + change.file);
     }
+    await options.assertUnchanged?.(applied);
   };
   await assertCurrent();
   const written: string[] = [];
@@ -150,6 +157,10 @@ export async function finishChanges(
           await fs.rename(temp, change.file);
         }
         written.push(change.file);
+        applied.push(change);
+        expectedOutputs.set(change.file, change.after);
+        if (change.before === null) await fs.unlink(temp);
+        await assertCurrent();
       }
     } catch (error) {
       throw new ToolError(

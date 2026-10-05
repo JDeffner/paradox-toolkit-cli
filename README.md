@@ -2,6 +2,8 @@
 
 Standalone commands and local MCP tools for Paradox modding. Look up game documentation and mod definitions, inspect dependencies, and check saved mod files with the Toolkit language server and Tiger. VS Code is optional. This project has its own repository and package; it shares its game knowledge and core tools with the [Paradox Modding Toolkit](https://github.com/JDeffner/paradox-modding-toolkit).
 
+The [project wiki](https://github.com/JDeffner/paradox-toolkit-cli/wiki) covers setup, commands, MCP clients, editing workflows and known limits.
+
 ## Install
 
 Download `px-lsp-cli-0.1.0.tgz` from the [GitHub releases](https://github.com/JDeffner/paradox-toolkit-cli/releases) and install it with `pnpm add -g ./px-lsp-cli-0.1.0.tgz`. Then run `pxtk --version` and `pxtk --help`. Node 22.22.2 or newer is required. This initial release is distributed on GitHub; it is not published to npm.
@@ -79,7 +81,7 @@ Start the local stdio MCP server with:
 pxtk mcp --config <config-file>
 ```
 
-Only MCP messages go to stdout. Query tools are `pxtk_status`, `pxtk_search`, `pxtk_inspect`, `pxtk_read`, `pxtk_impact`, and `pxtk_playsets`. Validation uses `pxtk_validate`; its optional `writeBaseline` argument creates a baseline. Preparation tools are `pxtk_new`, `pxtk_init`, `pxtk_create`, `pxtk_loc`, `pxtk_logs`, `pxtk_format`, and `pxtk_image`; their explicit write mode changes mod files. `pxtk_launch` previews or starts the game with `start` and a preview token. These 15 tools declare input descriptions and output schemas. Indexed operations start a fresh LSP session and reuse its disk cache. Requests are serialized.
+Only MCP messages go to stdout. Research tools include `pxtk_status`, `pxtk_search`, `pxtk_inspect`, `pxtk_read`, `pxtk_impact`, `pxtk_conflicts` and `pxtk_playsets`. Preparation adds `pxtk_rename`, `pxtk_edit`, `pxtk_import` and `pxtk_package` alongside the existing writers. `pxtk_loc` includes translation synchronization. `pxtk_migrate` lists migrations, queries routes and previews recipes. `pxtk_validate` can create a baseline; `pxtk_launch` can start the game. These 21 tools declare input descriptions and output schemas. Indexed operations start a fresh LSP session and reuse its disk cache. Requests are serialized.
 
 With `pxtk` on PATH, run one of these registrations from the configured mod folder. The syntax follows the installed clients' `mcp add --help`:
 
@@ -199,6 +201,71 @@ Inputs can be DDS, TGA, PNG, JPEG or WebP. Outputs can be DDS, PNG, JPEG or WebP
 Resize modes are contain (default, transparent padding), cover (crop to fill), inside (keep the image within the bounds), and fill (stretch). JPEG requires a background when pixels are transparent. DDS auto selects BC3 for transparency and BC1 otherwise; BGRA8 is also available. BC1 rejects transparent pixels. DDS output has one mip level, and existing mipmaps are not copied. Assets that require a complete mip chain need a converter that generates that chain before use in the game. Cubemaps, texture arrays, volumes and animated inputs are unsupported. The operation applies EXIF orientation and does not copy image metadata. Inspection reports dimensions, format, alpha channel and mip count.
 
 The CLI uses Sharp for headless common-format decoding, encoding and resizing. Package installation supplies its native runtime; optional platform dependencies must be enabled. The toolkit's DDS and TGA codecs remain shared with the editor. There is no VS Code or external image-editor requirement. Limits are 200 images, 16 megapixels per image, 64 MiB per input file, and 256 MiB of compressed inputs per batch.
+
+## Maintain existing content
+
+These workflows are available in the source build. Each new writer requires both `--write` and the `--expect` token from the same reviewed request. Omitting them returns a preview.
+
+Synchronize a translation with its source language:
+
+```sh
+pxtk loc sync --source-language english --language german --json
+pxtk loc sync --source-language english --language german --file localization/english/mymod_l_english.yml --json
+```
+
+Sync adds missing keys as blank entries with source-language comments. It preserves existing translations, including keys already translated in another file, and follows the source file's language and stage layout. It does not translate text. Duplicate keys, malformed headers and generated localization files are refused.
+
+Rename a definition or localization key from its declaration or an indexed reference:
+
+```sh
+pxtk rename --file common/scripted_effects/mymod.txt --line 1 --column 1 --to mymod_renamed_effect --json
+pxtk edit --file common/traits/mymod.txt --operations edits.json --json
+```
+
+Rename positions are 1-based UTF-16 coordinates. The shared language server refuses collisions, foreign definitions and unsupported symbol kinds. Every proposed destination must be in the editable mod. Dynamic references can be missed, so inspect the returned coverage and validate after applying. Edited script and localization files use UTF-8 with BOM; unrelated text and line endings remain unchanged.
+
+For `edit`, `edits.json` contains an array of shared definition operations. Values are script source; `null` removes a property. `upsertBlock` accepts a definition name and its full block text. A refused operation rejects the batch.
+
+```json
+[{ "op": "setProperties", "name": "mymod_trait", "properties": [{ "key": "martial", "value": "2" }] }]
+```
+
+The MCP equivalents accept `{file,line,column,to}` for `pxtk_rename` and `{file,edits:[...]}` for `pxtk_edit`. Apply with `write: true` and `expect: data.previewToken`. Indexed mod and dependency changes invalidate these previews. Vanilla is identified by installation and version; concurrent manual vanilla edits require a fresh preview.
+
+## Inspect conflicts and import vanilla
+
+```sh
+pxtk conflicts --json
+pxtk conflicts --input <base-mod> --input <later-mod> --limit 50 --json
+pxtk import --source common/scripted_effects/<file>.txt --json
+pxtk import --directory common/scripted_effects --json
+```
+
+Conflict inputs run from first loaded to last loaded. With no explicit inputs, the command uses configured parents followed by the editable mod. Explicit inputs need only a selected game, not an editable workspace. The report includes contributors, proven winners, replacement paths, dependency issues and a source fingerprint. Unknown precedence stays unknown. Vanilla is excluded, binary files need external review, and profiles without a verified composition policy return incomplete. Exit 1 means the report contains conflicts or composition issues, including identical overlaps that still need review.
+
+Import copies one exact game-relative file into the matching mod path. Directory import creates the selected path and missing parents without copying its contents. Existing destinations, traversal and links are refused. Source bytes are preserved; game files remain read-only.
+
+## Stage a mod release
+
+```sh
+pxtk package --output <new-release-folder> --json
+```
+
+Review included and excluded files, hashes, total size and descriptor findings. Apply with the preview token to create a new output folder outside the mod, game and dependency folders. Its parent must already exist. The command uses Toolkit `.pxignore` semantics: an existing file replaces the default patterns, Toolkit configuration is always excluded, and descriptor metadata is always kept. It never creates or changes `.pxignore`. Descriptor errors block staging; warnings remain visible. Source changes invalidate the token. Failed import and package writes report completed files, partial files and created folders. Inspect those paths before retrying; partial files are retained to preserve concurrent edits.
+
+Staging creates a directory, not an archive, and does not upload to Steam. Its metadata checks do not certify Workshop acceptance or gameplay compatibility.
+
+## Review migrations
+
+```sh
+pxtk migrate catalog --game ck3 --json
+pxtk migrate routes --game ck3 --from <exact-build> --to <exact-build> --json
+pxtk migrate preview --recipe <catalog-id> --source-game-path <old-game-data> --target-game-path <new-game-data> --answers answers.json --json
+```
+
+Catalog and route queries do not require an editable mod. Preview uses the selected mod and the recipe's declared source/target evidence. Required installation builds must be identifiable and match the recipe. Answers are a JSON object of question IDs with string or boolean values. The result reports applicability, unanswered questions, blockers and a proposed plan with hashes and bounded file previews. No migration plan is applied; apply and restore are separate workflows.
+
+For a local recipe, first use `--recipe-file <artifact.cjs>` without `--trust`. This returns its SHA-256 and preview without loading its code. After reviewing the artifact, repeat with `--trust <sha256>`; changed code is refused. Executable artifacts use CommonJS. Bundle their dependencies because the artifact hash does not cover imported files. Local recipes run with the process's filesystem and network permissions. Workers provide cancellation and crash isolation, not a sandbox. The MCP migration tool therefore declares write and external-access capability even though the adapter does not apply plans. Recipe stdout and stderr are captured inside bounded diagnostics, preserving JSON output.
 
 ## Launch a playset
 
