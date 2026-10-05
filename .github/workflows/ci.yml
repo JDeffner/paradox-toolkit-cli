@@ -35,4 +35,4 @@ jobs:
       - run: pnpm pack --pack-destination .local/artifacts
       - name: Installed package
         shell: bash
-        run: pnpm test:package .local/artifacts/px-lsp-cli-*.tgz
+        run: pnpm test:package .local/artifacts/pxtk-cli-*.tgz

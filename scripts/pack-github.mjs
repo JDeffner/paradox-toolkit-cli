@@ -18,10 +18,10 @@ try {
   const pkg = path.join(staging, "package");
   const manifestPath = path.join(pkg, "package.json");
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
-  assert.equal(manifest.name, "@px-lsp/cli");
+  assert.equal(manifest.name, "pxtk-cli");
   assert.match(manifest.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/);
   assert.equal(manifest.bin.pxtk, "dist/pxtk.cjs");
-  manifest.name = "@jdeffner/cli";
+  manifest.name = "@jdeffner/pxtk-cli";
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
   execSync("pnpm --config.ignore-scripts=true pack --out ../mirror.tgz", {
     cwd: pkg,
@@ -53,7 +53,7 @@ try {
     }
   }
   await mkdir(output, { recursive: true });
-  const target = path.join(output, `jdeffner-cli-${manifest.version}.tgz`);
+  const target = path.join(output, `jdeffner-pxtk-cli-${manifest.version}.tgz`);
   await copyFile(path.join(staging, "mirror.tgz"), target);
   console.log(`Created ${path.relative(root, target)}`);
 } finally {

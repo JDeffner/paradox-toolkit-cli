@@ -70,7 +70,7 @@ Inspect accepts examples and templates booleans for separate bounded lists. Impa
 
 Formatting check differences and localization coverage findings use exit 1. Preparation commands that do not load the LSP report unknown documentation provenance and an empty serverVersion. Localization entries report their own indexed source locations. Formatting, scaffolding, initialization, logs and image preparation use shared modules directly.
 
-The standalone `@px-lsp/cli` package exposes research, source reading, validation, and preparation commands. Its indexed operations use existing Toolkit LSP methods without changing their names or payloads.
+The standalone `pxtk-cli` package exposes research, source reading, validation, and preparation commands. Its indexed operations use existing Toolkit LSP methods without changing their names or payloads.
 
 `--json` prints one object to stdout. Help (including no command) uses `{ schemaVersion: 1, version, help }`; `--version --json` uses `{ schemaVersion: 1, version }`. Operation results use this envelope:
 

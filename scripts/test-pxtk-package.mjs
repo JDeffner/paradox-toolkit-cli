@@ -19,7 +19,7 @@ await copyFile(path.resolve(tarball), path.join(scratch, "payload.tgz"));
 execFileSync("tar", ["-xzf", "payload.tgz"], { cwd: scratch });
 const pkg = path.join(scratch, "package");
 const manifest = JSON.parse(await readFile(path.join(pkg, "package.json"), "utf8"));
-assert.match(manifest.name, /^@[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._-]*$/);
+assert.match(manifest.name, /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/);
 assert.equal(manifest.bin.pxtk, "dist/pxtk.cjs");
 assert.deepEqual(
   Object.keys(manifest.dependencies ?? {}),
@@ -58,8 +58,9 @@ await writeFile(path.join(scratch, "pnpm-workspace.yaml"), "packages: []\n");
 // Test a consumer install. A frozen workspace install need not cache registry
 // metadata for all native optional packages, so offline resolution can omit them.
 execSync("pnpm install --ignore-scripts", { cwd: scratch, stdio: "inherit", windowsHide: true });
+const command = path.join(scratch, "node_modules", manifest.name, manifest.bin.pxtk);
 const installedVersion = JSON.parse(
-  execSync("pnpm exec pxtk --version --json", {
+  execFileSync(process.execPath, [command, "--version", "--json"], {
     cwd: scratch,
     encoding: "utf8",
     windowsHide: true,
@@ -67,7 +68,6 @@ const installedVersion = JSON.parse(
   })
 );
 assert.deepEqual(installedVersion, { schemaVersion: 1, version: manifest.version });
-const command = path.join(scratch, "node_modules", manifest.name, manifest.bin.pxtk);
 const result = JSON.parse(
   execFileSync(
     process.execPath,

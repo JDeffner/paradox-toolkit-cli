@@ -25,7 +25,7 @@ jobs:
           import assert from 'node:assert/strict';
           import { readFileSync } from 'node:fs';
           const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
-          assert.equal(manifest.name, '@px-lsp/cli');
+          assert.equal(manifest.name, 'pxtk-cli');
           assert.equal(process.env.GITHUB_REF_NAME, `v${manifest.version}`);
           assert.equal(process.env.GITHUB_REPOSITORY_OWNER.toLowerCase(), 'jdeffner');
           NODE
@@ -46,16 +46,16 @@ jobs:
       - run: pnpm pack --pack-destination .local/artifacts
       - name: Test npm package
         shell: bash
-        run: pnpm test:package .local/artifacts/px-lsp-cli-*.tgz
+        run: pnpm test:package .local/artifacts/pxtk-cli-*.tgz
       - name: Pack GitHub mirror
         shell: bash
-        run: node scripts/pack-github.mjs .local/artifacts/px-lsp-cli-*.tgz
+        run: node scripts/pack-github.mjs .local/artifacts/pxtk-cli-*.tgz
       - name: Test GitHub mirror
         shell: bash
-        run: pnpm test:package .local/artifacts/github/jdeffner-cli-*.tgz
+        run: pnpm test:package .local/artifacts/github/jdeffner-pxtk-cli-*.tgz
       - name: Publish GitHub mirror
         shell: bash
-        run: pnpm publish .local/artifacts/github/jdeffner-cli-*.tgz --registry=https://npm.pkg.github.com --no-git-checks
+        run: pnpm publish .local/artifacts/github/jdeffner-pxtk-cli-*.tgz --registry=https://npm.pkg.github.com --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -87,14 +87,14 @@ jobs:
           mkdirSync(cwd, { recursive: true });
           writeFileSync(`${cwd}/package.json`, JSON.stringify({
             private: true,
-            dependencies: { '@jdeffner/cli': manifest.version },
+            dependencies: { '@jdeffner/pxtk-cli': manifest.version },
           }));
           writeFileSync(`${cwd}/pnpm-workspace.yaml`, 'packages: []\n');
           writeFileSync(`${cwd}/.npmrc`, '@jdeffner:registry=https://npm.pkg.github.com\n');
           execSync('pnpm install --ignore-scripts', { cwd, stdio: 'inherit', windowsHide: true });
-          const pkg = resolve(cwd, 'node_modules/@jdeffner/cli');
+          const pkg = resolve(cwd, 'node_modules/@jdeffner/pxtk-cli');
           const installed = JSON.parse(readFileSync(join(pkg, 'package.json'), 'utf8'));
-          assert.equal(installed.name, '@jdeffner/cli');
+          assert.equal(installed.name, '@jdeffner/pxtk-cli');
           assert.equal(installed.version, manifest.version);
           assert.equal(installed.bin.pxtk, 'dist/pxtk.cjs');
           const command = join(pkg, installed.bin.pxtk);

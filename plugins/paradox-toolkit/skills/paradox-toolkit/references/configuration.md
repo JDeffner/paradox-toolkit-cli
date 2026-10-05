@@ -1,6 +1,6 @@
 # Configure pxtk
 
-Install the prepared `@px-lsp/cli` package first. Confirm `pxtk --version` works. If it is not on PATH, invoke `node <package>/dist/pxtk.cjs` with the same arguments.
+Install `pxtk-cli@0.2.1` with `pnpm add -g pxtk-cli@0.2.1` first. Confirm `pxtk --version` works. If it is not on PATH, invoke `node <package>/dist/pxtk.cjs` with the same arguments.
 
 Store local settings in the mod's `.px-toolkit/pxtk.json`, or pass `--config <file>`. Keep machine-specific paths out of version control.
 

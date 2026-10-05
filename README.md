@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/JDeffner/paradox-toolkit-cli/main/assets/branding/pxcli-icon-256.png" alt="PXCLI icon" width="96" height="96" />
+
 # pxtk
 
 Standalone commands and local MCP tools for Paradox modding. Look up game documentation and mod definitions, inspect dependencies, and check saved mod files with the Toolkit language server and Tiger. VS Code is optional. This project has its own repository and package; it shares its game knowledge and core tools with the [Paradox Modding Toolkit](https://github.com/JDeffner/paradox-modding-toolkit).
@@ -6,20 +8,20 @@ The [project wiki](https://github.com/JDeffner/paradox-toolkit-cli/wiki) covers 
 
 ## Install
 
-Use Node 22.22.2 or newer and pnpm. Install version 0.2.0 from npm:
+Use Node 22.22.2 or newer and pnpm. Install version 0.2.1 from npm:
 
 ```sh
-pnpm add -g @px-lsp/cli@0.2.0
+pnpm add -g pxtk-cli@0.2.1
 pxtk --version
 pxtk --help
 ```
 
-You can also download [px-lsp-cli-0.2.0.tgz](https://github.com/JDeffner/paradox-toolkit-cli/releases/download/v0.2.0/px-lsp-cli-0.2.0.tgz) and [SHA256SUMS.txt](https://github.com/JDeffner/paradox-toolkit-cli/releases/download/v0.2.0/SHA256SUMS.txt) from [v0.2.0](https://github.com/JDeffner/paradox-toolkit-cli/releases/tag/v0.2.0), then install with `pnpm add -g ./px-lsp-cli-0.2.0.tgz`.
+You can also download [pxtk-cli-0.2.1.tgz](https://github.com/JDeffner/paradox-toolkit-cli/releases/download/v0.2.1/pxtk-cli-0.2.1.tgz) and [SHA256SUMS.txt](https://github.com/JDeffner/paradox-toolkit-cli/releases/download/v0.2.1/SHA256SUMS.txt) from [v0.2.1](https://github.com/JDeffner/paradox-toolkit-cli/releases/tag/v0.2.1), then install with `pnpm add -g ./pxtk-cli-0.2.1.tgz`.
 
-GitHub Packages distributes the same `pxtk` executable as `@jdeffner/cli@0.2.0`. It [requires authentication even for public packages](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry#authenticating-to-github-packages); npm is the simpler public install. See [GitHub Packages setup](https://github.com/JDeffner/paradox-toolkit-cli/wiki/Getting-Started#github-packages) for scoped authentication, then install with:
+GitHub Packages distributes the same `pxtk` executable as `@jdeffner/pxtk-cli@0.2.1`. It [requires authentication even for public packages](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry#authenticating-to-github-packages); npm is the simpler public install. See [GitHub Packages setup](https://github.com/JDeffner/paradox-toolkit-cli/wiki/Getting-Started#github-packages) for scoped authentication, then install with:
 
 ```sh
-pnpm add -g @jdeffner/cli@0.2.0
+pnpm add -g @jdeffner/pxtk-cli@0.2.1
 ```
 
 For a source build:
@@ -27,7 +29,7 @@ For a source build:
 Requires Node 22.22.2 or newer and pnpm. From this repository:
 
 ```sh
-git clone --branch v0.2.0 https://github.com/JDeffner/paradox-toolkit-cli.git
+git clone --branch v0.2.1 https://github.com/JDeffner/paradox-toolkit-cli.git
 cd paradox-toolkit-cli
 pnpm install --frozen-lockfile
 pnpm run compile
@@ -357,7 +359,7 @@ Source labels identify generated dumps, bundled snapshots, or wiki data. They do
 
 The CLI, MCP and JSON result contract is documented in [PROTOCOL.md](docs/PROTOCOL.md). Developer checks live in `test/`; the real CK3 exercise is `scripts/test-pxtk-real.ts`.
 
-The historical [0.1.0 release audit](docs/AUDIT-2026-10-05.html) records tested behavior, fixed defects, remaining limits and possible CLI additions from the editor Toolkit. The workflow implementation passes [all four CI jobs](https://github.com/JDeffner/paradox-toolkit-cli/actions/runs/37358046470), Windows and Ubuntu with Node 22.22.2 and 24, including 194 tests and installed-package checks. Version 0.2.0 exposes 21 MCP tools. In the real CK3 exercise, Tiger 1.19.0 reports CK3 1.20.0.3 as unsupported, so validation remains incomplete and baselines are refused. A compatible built-in migration with exact old-build game data remains unverified. No migration was applied and gameplay was not tested.
+The historical [0.1.0 release audit](docs/AUDIT-2026-10-05.html) records tested behavior, fixed defects, remaining limits and possible CLI additions from the editor Toolkit. The workflow implementation passes [all four CI jobs](https://github.com/JDeffner/paradox-toolkit-cli/actions/runs/37358046470), Windows and Ubuntu with Node 22.22.2 and 24, including 194 tests and installed-package checks. Version 0.2.1 exposes 21 MCP tools. In the real CK3 exercise, Tiger 1.19.0 reports CK3 1.20.0.3 as unsupported, so validation remains incomplete and baselines are refused. A compatible built-in migration with exact old-build game data remains unverified. No migration was applied and gameplay was not tested.
 
 ## Development
 
@@ -367,7 +369,7 @@ pnpm run typecheck
 pnpm run lint
 pnpm test
 pnpm pack --pack-destination .local/artifacts
-pnpm test:package .local/artifacts/px-lsp-cli-0.2.0.tgz
+pnpm test:package .local/artifacts/pxtk-cli-0.2.1.tgz
 ```
 
 The package test installs the archive in an isolated folder and runs research, writing, image inspection and failure checks. For real CK3 validation, copy `dev-paths.example.json` to ignored `dev-paths.json`, configure the game-data folder and Tiger executable, and run `pnpm test:real`. The equivalent environment variables are `PX_CK3_GAME_PATH`, `PX_CK3_LOGS_PATH` and `PX_CK3_TIGER_PATH`. Game files remain read-only; generated mods and reports stay under `.local/`.

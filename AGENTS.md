@@ -21,7 +21,7 @@ pnpm run typecheck
 pnpm run lint
 pnpm test
 pnpm pack --pack-destination .local/artifacts
-pnpm test:package .local/artifacts/px-lsp-cli-0.1.0.tgz
+pnpm test:package .local/artifacts/pxtk-cli-0.2.1.tgz
 ```
 
 The packaged test must run the installed command without a Toolkit checkout. Writer or validation changes also use `pnpm test:real` with configured CK3 and Tiger paths. Report missing corpus settings and game/validator version mismatches. A static check does not establish gameplay behavior.

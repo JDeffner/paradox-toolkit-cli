@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 - 2026-10-06
+
+- Publish `pxtk-cli` on npm and `@jdeffner/pxtk-cli` on GitHub Packages, with the `pxtk` command and 21 MCP tools.
+- Add npm trusted publishing through GitHub Actions OIDC and update package installation and release instructions.
+
 ## 0.2.0 - 2026-10-06
 
 - Distribute `@px-lsp/cli` on npm, `@jdeffner/cli` on GitHub Packages and an installable GitHub release archive. Both registry packages provide `pxtk` and 21 MCP tools.
