@@ -1,0 +1,69 @@
+{
+  "name": "@px-lsp/cli",
+  "version": "0.1.0",
+  "description": "Standalone Paradox Modding Toolkit commands and local MCP tools.",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JDeffner/paradox-toolkit-cli.git"
+  },
+  "homepage": "https://github.com/JDeffner/paradox-toolkit-cli#readme",
+  "bugs": {
+    "url": "https://github.com/JDeffner/paradox-toolkit-cli/issues"
+  },
+  "author": {
+    "name": "Joël Deffner"
+  },
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "bin": {
+    "pxtk": "dist/pxtk.cjs"
+  },
+  "files": [
+    "dist",
+    "plugins",
+    "docs",
+    "vendor/toolkit-core/manifest.json",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "compile": "node scripts/compile-cli.mjs",
+    "pxtk": "node dist/pxtk.cjs",
+    "core:import": "node scripts/import-toolkit-core.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . && prettier --check .",
+    "test": "vitest run",
+    "test:package": "node scripts/test-pxtk-package.mjs",
+    "test:real": "esbuild scripts/test-pxtk-real.ts --bundle --platform=node --outfile=.local/test-pxtk-real.cjs && node .local/test-pxtk-real.cjs",
+    "prepack": "pnpm run compile"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@px-lsp/protocol": "file:vendor/toolkit-core/protocol.tgz",
+    "@px-lsp/server": "file:vendor/toolkit-core/server.tgz",
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^26.1.0",
+    "esbuild": "^0.28.0",
+    "eslint": "^9.39.5",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10",
+    "vscode-jsonrpc": "^9.0.1",
+    "vscode-languageserver": "^10.1.0",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "zod": "^4.3.6"
+  },
+  "dependencies": {
+    "sharp": "^0.35.4"
+  },
+  "packageManager": "pnpm@11.25.0"
+}

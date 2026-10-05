@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>pxtk 0.1.0 audit</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        background: #191b1e;
+        color: #e8e7e3;
+      }
+      body {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.65;
+      }
+      main {
+        max-width: 1100px;
+        margin: auto;
+        padding: 48px 28px 80px;
+      }
+      h1 {
+        font-size: clamp(2rem, 5vw, 3rem);
+        line-height: 1.15;
+        margin: 10px 0 24px;
+      }
+      h2 {
+        font-size: 1.5rem;
+        margin: 44px 0 18px;
+      }
+      h3 {
+        font-size: 1.15rem;
+        margin: 0 0 8px;
+      }
+      p,
+      li {
+        max-width: 74ch;
+      }
+      p {
+        margin: 12px 0 20px;
+      }
+      a {
+        color: #a9cedc;
+        text-underline-offset: 3px;
+      }
+      code {
+        font:
+          0.88em Consolas,
+          monospace;
+        overflow-wrap: anywhere;
+      }
+      .meta {
+        color: #b8bbb9;
+        font-size: 0.92rem;
+      }
+      .tag {
+        display: inline-block;
+        background: #303b36;
+        color: #d3e8d9;
+        border-radius: 6px;
+        padding: 3px 10px;
+        font-size: 0.85rem;
+        margin: 0 8px 8px 0;
+      }
+      .limit {
+        background: #443d2d;
+        color: #f0deb7;
+      }
+      .panel {
+        background: #23262a;
+        border: 1px solid #393d41;
+        border-radius: 10px;
+        padding: 24px;
+        margin: 20px 0;
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.96rem;
+      }
+      th,
+      td {
+        text-align: left;
+        vertical-align: top;
+        padding: 14px 12px;
+        border-bottom: 1px solid #414448;
+      }
+      th {
+        color: #c3c7c4;
+        font-weight: 600;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      ol {
+        padding-left: 26px;
+      }
+      li {
+        margin-bottom: 18px;
+      }
+      footer {
+        border-top: 1px solid #414448;
+        margin-top: 44px;
+        padding-top: 20px;
+      }
+      @media (max-width: 600px) {
+        main {
+          padding: 28px 18px 48px;
+        }
+        .panel {
+          padding: 16px;
+        }
+        th,
+        td {
+          padding: 10px 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="meta">Release audit · 5 October 2026 · @px-lsp/cli 0.1.0</p>
+      <h1>Useful for automation.<br />Still an early terminal interface.</h1>
+      <p>
+        pxtk covers the main research, preparation and validation loop without VS Code. Its 15 operations
+        expose source evidence, previews and explicit failure states through both CLI and MCP. The audit found
+        and fixed defects in argument validation, writer paths, definition detection, image sizing and log
+        reads. The release is suitable for early use within the limits below. It does not certify gameplay or
+        every game and platform combination.
+      </p>
+      <span class="tag">Confirmed defects fixed</span><span class="tag">Preview-first writes</span
+      ><span class="tag limit">Real deep validation incomplete</span>
+
+      <h2>How usable is it?</h2>
+      <p>
+        For agents and scripts, the interface is useful now: versioned JSON, described MCP inputs and output
+        schemas, bounded lists, source continuation hashes, validation baselines, and explicit write modes
+        reduce guesswork. It can work with bundled documentation when no game is installed, while reporting
+        the missing coverage.
+      </p>
+      <p>
+        For a modder at a terminal, it needs more polish. The default display prints a short header followed
+        by indented JSON. Help is one long command list, without command-specific help or shell completion.
+        Initial configuration requires understanding the game folder, generated documentation, Tiger, and
+        dependency order. The README now gives installation and initialization steps, but there is no
+        interactive setup or guided repair command.
+      </p>
+      <p>
+        Indexed operations start a fresh language server for each request. In the first real CK3 run, status
+        took about 34 seconds; later search and inspect calls took about 3 seconds each, and impact took about
+        8 seconds. These are observations from one machine under audit load, not a performance benchmark. MCP
+        also serializes requests. A persistent indexed session could improve repeated research, but would need
+        reliable invalidation before it could replace the current model.
+      </p>
+
+      <h2>What was checked</h2>
+      <div class="panel scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Boundary</th>
+              <th>Evidence</th>
+              <th>Limit</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Build and static checks</td>
+              <td>Frozen dependency install, compilation, typecheck and lint.</td>
+              <td>These establish build consistency, not game behavior.</td>
+            </tr>
+            <tr>
+              <td>CLI and MCP</td>
+              <td>
+                All 114 automated tests passed, including actual subprocess calls and SDK client calls, JSON
+                errors, strict inputs, cancellation, profiles and output schemas.
+              </td>
+              <td>Client UI approval behavior depends on the host.</td>
+            </tr>
+            <tr>
+              <td>Installed distribution</td>
+              <td>
+                Tarball installed in an isolated project. The installed command, LSP, game data, plugins,
+                image codec, research, writes, launcher fixtures and MCP are exercised.
+              </td>
+              <td>The test uses synthetic launcher data and does not start a Paradox game.</td>
+            </tr>
+            <tr>
+              <td>Real CK3 files</td>
+              <td>
+                Research, impact, injected error and recovery, event creation, localization edit, formatting,
+                new-mod preview and application. Vanilla evidence and the original probe are preserved.
+              </td>
+              <td>CK3 1.20.0.3 with Tiger 1.19.0. Tiger explicitly reports an unsupported newer game.</td>
+            </tr>
+            <tr>
+              <td>Dependencies and provenance</td>
+              <td>
+                Production and full dependency audits returned no known advisories. Build checks both core
+                archive hashes and installed content hashes. Matching core source and licenses are in the
+                archived packages.
+              </td>
+              <td>
+                An advisory scan is not a security proof. The recorded upstream commit is not yet public.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The automated checks run locally on Windows with Node 24.12.0 and pnpm 11.25.0. GitHub CI runs the
+        same build, lint, test and installed-package checks on Windows and Ubuntu with Node 22.22.2 and 24.
+        Check the workflow results for the release commit for its platform evidence. The declared Node minimum
+        is 22.22.2; this audit did not run a separate local minimum-version test.
+      </p>
+
+      <h2>Defects fixed before release</h2>
+      <div class="panel scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Finding</th>
+              <th>Impact before the fix</th>
+              <th>Correction</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>High: redirected writer root</td>
+              <td>
+                A mod root or ancestor replaced by a link after configuration resolution could redirect writes
+                into a protected dependency.
+              </td>
+              <td>
+                Check root ancestors and canonical containment against the mod, game and dependency roots at
+                write boundaries. Regression cases preserve protected files.
+              </td>
+            </tr>
+            <tr>
+              <td>Medium: unknown MCP fields discarded</td>
+              <td>
+                A misspelled preview-token field could disappear before validation, allowing an explicit write
+                without the intended stale-preview check.
+              </td>
+              <td>
+                Strict MCP objects reject unknown fields. A real client regression proves that a misspelled
+                writer argument leaves the file unchanged.
+              </td>
+            </tr>
+            <tr>
+              <td>Medium: regex definition detection</td>
+              <td>
+                A second definition on one line was missed. Nested references and matching names of other
+                kinds could incorrectly block creation.
+              </td>
+              <td>
+                Use the shared profile schema and definition extractor, with tests for real duplicates and
+                false positives.
+              </td>
+            </tr>
+            <tr>
+              <td>Medium: EXIF dimensions</td>
+              <td>
+                Single-dimension resizing used stored dimensions before orientation. Valid output could be
+                rejected, or oversized output could pass the estimate.
+              </td>
+              <td>Calculate the output limit from oriented dimensions before decoding the resized pixels.</td>
+            </tr>
+            <tr>
+              <td>Medium: growing and rotating logs</td>
+              <td>
+                The size check preceded an unbounded read. Rotation could combine one file's identity with
+                another file's bytes.
+              </td>
+              <td>
+                Read bounded chunks and identity through one file handle. Tests cover oversize, growth and
+                replacement.
+              </td>
+            </tr>
+            <tr>
+              <td>Low: CLI metadata and ignored arguments</td>
+              <td>
+                JSON help/version emitted plain text; create silently ignored <code>--kind</code>; a literal
+                game <code>--json</code> could affect CLI formatting.
+              </td>
+              <td>
+                JSON metadata envelopes, actionable argument rejection, and option handling that respects
+                <code>--</code>.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Documentation also now follows the shared localization placement policy. The plugin no longer gives an
+        absolute rule that contradicts configured destinations. Package metadata links the source repository
+        and issue tracker, and the distribution test exercises the installed command shim.
+      </p>
+
+      <h2>Remaining functional limits</h2>
+      <ul>
+        <li>
+          <strong>Deep validation cannot be certified against this installation.</strong> Tiger 1.19.0 is the
+          latest published release checked during the audit. It rejects CK3 1.20.0.3. pxtk returns exit 2,
+          keeps findings visible and refuses baselines. Complete baseline creation and comparison have
+          deterministic process-fixture coverage, but need a compatible real game and validator pair.
+        </li>
+        <li>
+          <strong>No gameplay proof.</strong> This audit does not start a real game. A reported running
+          process is only an early startup observation. Victoria 3 and EU5 have automated profile coverage,
+          not new real-game tests in this audit.
+        </li>
+        <li>
+          <strong>Launch support is bounded.</strong> Windows has actual copied-executable launch tests. Linux
+          process detection has mocked coverage; macOS startup, alternate user-directory launch and
+          metadata-format archive mods are unsupported. New mods still need launcher registration.
+        </li>
+        <li>
+          <strong>Research can be incomplete.</strong> Search inherits a 512-symbol cap, impact inherits a
+          2,000-entry override catalog cap, and dynamic references can be missed. Read-only callers are
+          outside impact's caller list. Source paging retrieves full supported files, but match lists have no
+          continuation cursor.
+        </li>
+        <li>
+          <strong>Preparation is selective.</strong> EU5 offers scripted-effect and scripted-trigger
+          scaffolds, not an event template. Repeated on-action scaffold hooks with different prefixes still
+          require manual editing when the shared target is already declared. Localization is per-key editing
+          and coverage checking, without batch translation synchronization.
+        </li>
+        <li>
+          <strong>Image outputs have one mip level.</strong> DDS mipmap generation, texture arrays, volumes,
+          cubemaps and animation are unsupported. Another converter is needed when the asset requires those
+          features.
+        </li>
+        <li>
+          <strong>Disk writes have limits.</strong> Unsaved editor buffers are invisible. Each update is
+          atomic, but a multi-file batch is not a filesystem transaction; partial failures report completed
+          files. Use preview tokens and save relevant buffers first.
+        </li>
+      </ul>
+
+      <h2>Toolkit features worth adding to the CLI</h2>
+      <p>
+        These are source-backed candidates, not features added by this audit. The comparison uses the
+        Toolkit's integration checkout at the pinned revision and its local changes. “Tagged” means present in
+        the local v0.5.0 source tag; it does not establish Marketplace publication. “Upcoming” means present
+        only in the inspected integration source.
+      </p>
+      <ol>
+        <li>
+          <strong>Conflict reports, medium effort, upcoming.</strong> A read-only
+          <code>pxtk conflicts</code> could report conflicting definitions, contributors, replace paths and
+          dependency-order problems across an ordered mod set. The shared Compatch engine already analyzes
+          compositions. This would extend the current single-symbol impact query. Maintained patch generation
+          is a separate, larger feature.
+        </li>
+        <li>
+          <strong>Safe symbol rename, medium effort, tagged.</strong>
+          <code>pxtk rename --file ... --line ... --column ... --to ...</code> could wrap the existing LSP
+          rename provider with a file preview and token. It must preserve upstream collision, ambiguity and
+          foreign-definition refusals, and report reference-coverage limits.
+        </li>
+        <li>
+          <strong>Translation synchronization, small to medium effort, tagged.</strong>
+          <code>pxtk loc sync</code> could add a language or append missing keys while retaining translated
+          values. Shared translation helpers already create blank entries with source comments and merge
+          translations. This does not perform automatic translation.
+        </li>
+        <li>
+          <strong>Exact vanilla import, small effort, upcoming.</strong> <code>pxtk import</code> could copy
+          one selected game-relative file, or create one selected directory path, into the mod with exclusive
+          creation. The editor has this workflow, but its host logic needs extraction. Directory import should
+          retain its current meaning: create the path, not recursively copy vanilla.
+        </li>
+        <li>
+          <strong>Migration discovery and previews, medium effort, upcoming.</strong> A catalog, route query
+          and recipe preview could expose the shared migration engine. Require exact source/target evidence
+          and explicit trust for local JavaScript recipes. Apply and restore are a larger follow-up; do not
+          promise arbitrary game-version conversion.
+        </li>
+        <li>
+          <strong>Precise definition edits, medium effort, tagged.</strong> <code>pxtk edit</code> could use
+          the existing definition-edit service for property updates and block insertion while preserving
+          comments and neighboring content. It would close the gap between creating a scaffold and maintaining
+          it.
+        </li>
+        <li>
+          <strong>Mod release staging, medium effort, tagged.</strong> <code>pxtk package</code> could show
+          included/excluded files, metadata problems and hashes, then write a clean output directory. Existing
+          ignore, staging and preflight modules need a shared API. Steam upload adds session and native-bridge
+          requirements and should remain a separate proposal.
+        </li>
+      </ol>
+      <p>
+        Start with translation synchronization for the smallest useful addition, or conflict reports for the
+        largest improvement to pre-launch research. Command-specific help, clearer human output and a
+        configuration diagnostic command would improve everyday use before adding more command groups.
+      </p>
+
+      <footer>
+        <h2>Sources and reproduction</h2>
+        <p>
+          <a href="../README.md">CLI README</a> · <a href="PROTOCOL.md">Public contract</a> ·
+          <a href="../vendor/toolkit-core/manifest.json">Core provenance</a> ·
+          <a href="https://github.com/JDeffner/paradox-toolkit-cli/actions">GitHub checks</a> ·
+          <a href="https://github.com/amtep/tiger/releases/tag/v1.19.0">Tiger release checked</a>
+        </p>
+        <p>
+          Run the checks in <code>AGENTS.md</code>, then <code>pnpm test:real</code> with configured CK3 and
+          Tiger paths. Real-game evidence stays under ignored <code>.local/artifacts/</code>; it is not
+          shipped because it contains local paths.
+        </p>
+        <p class="meta">
+          Toolkit source evidence: <code>compatch/engine.ts</code> and <code>compatch/node.ts</code>;
+          <code>features/rename.ts</code>; protocol <code>translationCore.ts</code>; editor
+          <code>vanillaImport.ts</code>; <code>migrations/routes.ts</code> and
+          <code>migrations/engine.ts</code>; <code>creators/definitionEdit.ts</code>; editor
+          <code>steam/pxignore.ts</code>, <code>steam/preflight.ts</code> and
+          <code>steam/workshopFiles.ts</code>. Paths are relative to the corresponding Toolkit package's
+          <code>src/</code> directory.
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

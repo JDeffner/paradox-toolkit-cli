@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.local/
+vendor/
+pnpm-lock.yaml
+LICENSE
+dev-paths.json

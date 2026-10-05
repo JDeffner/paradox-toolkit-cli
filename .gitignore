@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.local/
+dev-paths.json
+.env
+.env.*
+*.tgz
+!vendor/toolkit-core/*.tgz

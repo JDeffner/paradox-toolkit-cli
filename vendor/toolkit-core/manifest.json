@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/JDeffner/paradox-modding-toolkit.git",
+  "revision": "4dd40970077fbf56562181ade0e62419a7a87ccd",
+  "packages": [
+    {
+      "name": "@px-lsp/protocol",
+      "version": "0.2.7",
+      "archive": "protocol.tgz",
+      "sha256": "507b7dbbc60d73cbc5f59b4fbf4356a6279e8c4869abd4986fd483bad40929e4",
+      "contentSha256": "aa5e9f7a09f1a0cc866c82c543ad81fb77350d4068436866c895e5733cb1709f"
+    },
+    {
+      "name": "@px-lsp/server",
+      "version": "0.3.7",
+      "archive": "server.tgz",
+      "sha256": "20d8bb5b2383f07aba1256ede99b7e3863161484bf05492297d37b492c016dfc",
+      "contentSha256": "eee6a7a1e497834dc8169cc207606d1382de31caddb607455f9c75ee46b1eaab"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+packages: []
+
+overrides:
+  "@px-lsp/protocol": "file:vendor/toolkit-core/protocol.tgz"
+  "brace-expansion@<5.0.8": ">=5.0.8"
+
+allowBuilds:
+  esbuild: true
