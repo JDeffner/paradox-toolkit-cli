@@ -1,0 +1,98 @@
+name: Publish npm
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    if: github.event_name == 'push'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check release tag
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+          assert.equal(manifest.name, 'pxtk-cli');
+          assert.equal(process.env.GITHUB_REF_NAME, `v${manifest.version}`);
+          assert.equal(process.env.GITHUB_REPOSITORY, 'JDeffner/paradox-toolkit-cli');
+          NODE
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run compile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm test
+      - run: pnpm pack --pack-destination .local/artifacts
+      - name: Test installed package
+        shell: bash
+        run: pnpm test:package .local/artifacts/pxtk-cli-*.tgz
+      - name: Publish with npm OIDC
+        shell: bash
+        run: pnpm dlx npm@11.21.0 publish .local/artifacts/pxtk-cli-*.tgz --registry=https://registry.npmjs.org --access public --ignore-scripts
+
+  verify-oidc:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify npm OIDC token exchange
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          assert.equal(JSON.parse(readFileSync('package.json', 'utf8')).name, 'pxtk-cli');
+          assert.equal(process.env.GITHUB_REPOSITORY, 'JDeffner/paradox-toolkit-cli');
+          const { ACTIONS_ID_TOKEN_REQUEST_URL, ACTIONS_ID_TOKEN_REQUEST_TOKEN } = process.env;
+          if (!ACTIONS_ID_TOKEN_REQUEST_URL || !ACTIONS_ID_TOKEN_REQUEST_TOKEN)
+            throw new Error('GitHub OIDC request credentials are unavailable.');
+          const readJSON = async (response, provider) => {
+            try {
+              return await response.json();
+            } catch {
+              throw new Error(`${provider} returned invalid OIDC JSON.`);
+            }
+          };
+          const request = new URL(ACTIONS_ID_TOKEN_REQUEST_URL);
+          request.searchParams.set('audience', 'npm:registry.npmjs.org');
+          const github = await fetch(request, {
+            headers: { Authorization: `Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}` },
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!github.ok) throw new Error(`GitHub OIDC request failed: HTTP ${github.status}.`);
+          const identity = await readJSON(github, 'GitHub');
+          if (typeof identity.value !== 'string' || !identity.value)
+            throw new Error('GitHub did not return an OIDC id_token.');
+          // npm documents no request body for this exchange endpoint.
+          const npm = await fetch('https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/pxtk-cli', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${identity.value}`, Accept: 'application/json' },
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (npm.status !== 201) throw new Error(`npm OIDC exchange failed: HTTP ${npm.status}.`);
+          const exchange = await readJSON(npm, 'npm');
+          const created = Date.parse(exchange.created);
+          const expires = Date.parse(exchange.expires);
+          if (exchange.token_type !== 'oidc' || typeof exchange.token !== 'string' || !exchange.token ||
+              !Number.isFinite(created) || !Number.isFinite(expires) || expires <= created || expires <= Date.now())
+            throw new Error('npm did not return a valid short-lived OIDC token.');
+          console.log('npm OIDC token exchange verified for pxtk-cli.');
+          NODE
