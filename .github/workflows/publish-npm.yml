@@ -93,6 +93,16 @@ jobs:
           const expires = Date.parse(exchange.expires);
           if (exchange.token_type !== 'oidc' || typeof exchange.token !== 'string' || !exchange.token ||
               !Number.isFinite(created) || !Number.isFinite(expires) || expires <= created || expires <= Date.now())
-            throw new Error('npm did not return a valid short-lived OIDC token.');
+            throw new Error(`npm returned an unexpected OIDC response: ${JSON.stringify({
+              fields: Object.keys(exchange),
+              tokenType: exchange.token_type,
+              tokenPresent: typeof exchange.token === 'string' && exchange.token.length > 0,
+              createdType: typeof exchange.created,
+              expiresType: typeof exchange.expires,
+              createdValid: Number.isFinite(created),
+              expiresValid: Number.isFinite(expires),
+              expiresAfterCreation: expires > created,
+              expiresInFuture: expires > Date.now(),
+            })}`);
           console.log('npm OIDC token exchange verified for pxtk-cli.');
           NODE
