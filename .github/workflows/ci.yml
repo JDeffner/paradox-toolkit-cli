@@ -31,7 +31,7 @@ jobs:
         if: runner.os == 'Linux'
         # The host user systemd can deny /proc access. Keep that refusal in
         # production; launch fixtures need a controlled, inspectable process set.
-        run: sudo unshare --pid --fork --mount-proc --kill-child runuser -u "$(id -un)" -- env "PATH=$PATH" pnpm test
+        run: sudo --preserve-env unshare --pid --fork --mount-proc --kill-child runuser --preserve-environment -u "$(id -un)" -- env "PATH=$PATH" pnpm test
       - run: pnpm pack --pack-destination .local/artifacts
       - name: Installed package
         shell: bash
