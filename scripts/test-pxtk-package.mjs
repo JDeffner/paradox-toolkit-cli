@@ -52,7 +52,9 @@ await writeFile(
   JSON.stringify({ private: true, dependencies: { "@px-lsp/cli": "file:./payload.tgz" } })
 );
 await writeFile(path.join(scratch, "pnpm-workspace.yaml"), "packages: []\n");
-execSync("pnpm install --offline --ignore-scripts", { cwd: scratch, stdio: "pipe", windowsHide: true });
+// Test a consumer install. A frozen workspace install need not cache registry
+// metadata for all native optional packages, so offline resolution can omit them.
+execSync("pnpm install --ignore-scripts", { cwd: scratch, stdio: "inherit", windowsHide: true });
 const installedVersion = JSON.parse(
   execSync("pnpm exec pxtk --version --json", {
     cwd: scratch,

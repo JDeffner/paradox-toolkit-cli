@@ -177,7 +177,8 @@
             <tr>
               <td>CLI and MCP</td>
               <td>
-                All 114 automated tests passed, including actual subprocess calls and SDK client calls, JSON
+                The local audit suite passed all 114 tests before the added Linux permission regression. The
+                release suite has 115 tests, including actual subprocess calls and SDK client calls, JSON
                 errors, strict inputs, cancellation, profiles and output schemas.
               </td>
               <td>Client UI approval behavior depends on the host.</td>
@@ -215,6 +216,7 @@
       <p>
         The automated checks run locally on Windows with Node 24.12.0 and pnpm 11.25.0. GitHub CI runs the
         same build, lint, test and installed-package checks on Windows and Ubuntu with Node 22.22.2 and 24.
+        Linux tests use a private process namespace so launch fixtures can inspect every same-user process.
         Check the workflow results for the release commit for its platform evidence. The declared Node minimum
         is 22.22.2; this audit did not run a separate local minimum-version test.
       </p>
@@ -293,24 +295,16 @@
                 <code>--</code>.
               </td>
             </tr>
-            <tr>
-              <td>Medium: Linux process ownership</td>
-              <td>
-                The first Ubuntu run failed on an unreadable process executable. The probe took ownership from
-                the process directory, which need not have the executable link's owner.
-              </td>
-              <td>
-                Check ownership of the executable link itself. Keep failures visible when an executable owned
-                by the current user cannot be inspected.
-              </td>
-            </tr>
           </tbody>
         </table>
       </div>
       <p>
         Documentation also now follows the shared localization placement policy. The plugin no longer gives an
         absolute rule that contradicts configured destinations. Package metadata links the source repository
-        and issue tracker, and the distribution test exercises the installed command shim.
+        and issue tracker, and the distribution test exercises the installed command shim. A cold-store
+        reproduction exposed an offline test-install failure: pnpm could omit Sharp's native optional
+        dependency when registry metadata was absent. The package check now uses a normal online consumer
+        install and still verifies the image command.
       </p>
 
       <h2>Remaining functional limits</h2>
@@ -328,7 +322,10 @@
         </li>
         <li>
           <strong>Launch support is bounded.</strong> Windows has actual copied-executable launch tests. Linux
-          process detection has mocked coverage; macOS startup, alternate user-directory launch and
+          launch fixtures run in a private process namespace. On an ordinary Linux host, an unreadable
+          same-user process can block launch with <code>process_probe_failed</code>. Ubuntu CI demonstrated
+          this with its user systemd process. The refusal is preserved to avoid starting a duplicate game;
+          namespace tests do not certify a desktop session. macOS startup, alternate user-directory launch and
           metadata-format archive mods are unsupported. New mods still need launcher registration.
         </li>
         <li>

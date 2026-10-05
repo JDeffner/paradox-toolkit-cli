@@ -230,7 +230,7 @@ Installed launcher metadata and an existing engine load file are required. Listi
 
 Use `--user-data-path`, config `userDataPath`, or `PX_<GAME>_USER_DATA_PATH` to inspect another user-data folder. Launch requires that folder to match the canonical location from launcher metadata's gameDataPath. Engine user-directory redirection is unsupported. A stale token or an already-running game rejects startup before changing load settings.
 
-Windows launch has been tested. Linux process detection is implemented but untested; macOS startup is unsupported. The returned process state is a one-second observation. An initial exit with code 0 reports `exited`; `running` does not prove the mod loaded or gameplay works. Once started, the game remains open when the CLI or MCP caller disconnects.
+Windows launch has process-fixture coverage. Linux launch fixtures run in an isolated process namespace; a normal desktop can refuse launch with `process_probe_failed` if any same-user process is unreadable. This preserves duplicate-game protection. Real Linux game startup has not been tested; macOS startup is unsupported. The returned process state is a one-second observation. An initial exit with code 0 reports `exited`; `running` does not prove the mod loaded or gameplay works. Once started, the game remains open when the CLI or MCP caller disconnects.
 
 ## Read playtest errors
 

@@ -20,42 +20,18 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
-      - name: Diagnose Linux process visibility
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          node --input-type=module <<'JS'
-          import * as fs from 'node:fs/promises';
-          const statInfo = (s) => ({ uid: s.uid, gid: s.gid, dev: s.dev, ino: s.ino, mode: s.mode });
-          for (const pid of await fs.readdir('/proc')) {
-            if (!/^\d+$/.test(pid)) continue;
-            const exe = `/proc/${pid}/exe`;
-            try {
-              const link = await fs.lstat(exe);
-              if (link.uid !== process.getuid()) continue;
-              try { await fs.realpath(exe); } catch (error) {
-                if (error.code !== 'EACCES' && error.code !== 'EPERM') continue;
-                const result = { pid, uid: process.getuid(), link: statInfo(link), realpath: error.code };
-                for (const [name, read] of Object.entries({
-                  directory: () => fs.stat(`/proc/${pid}`).then(statInfo),
-                  comm: () => fs.readFile(`/proc/${pid}/comm`, 'utf8'),
-                  readlink: () => fs.readlink(exe),
-                  stat: () => fs.stat(exe).then(statInfo),
-                })) {
-                  try { result[name] = await read(); } catch (error) { result[name] = error.code; }
-                }
-                console.log(JSON.stringify(result));
-              }
-            } catch (error) {
-              if (error.code !== 'ENOENT' && error.code !== 'ESRCH') throw error;
-            }
-          }
-          JS
       - run: pnpm install --frozen-lockfile
       - run: pnpm run compile
       - run: pnpm run typecheck
       - run: pnpm run lint
-      - run: pnpm test
+      - name: Tests (Windows)
+        if: runner.os == 'Windows'
+        run: pnpm test
+      - name: Tests (Linux, isolated process namespace)
+        if: runner.os == 'Linux'
+        # The host user systemd can deny /proc access. Keep that refusal in
+        # production; launch fixtures need a controlled, inspectable process set.
+        run: sudo unshare --pid --fork --mount-proc --kill-child runuser -u "$(id -un)" -- env "PATH=$PATH" pnpm test
       - run: pnpm pack --pack-destination .local/artifacts
       - name: Installed package
         shell: bash

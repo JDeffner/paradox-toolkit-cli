@@ -173,7 +173,7 @@ it("reports a missing executable as a probe failure", async () => {
 });
 
 it.each([0, 1000])(
-  "skips root-owned executable links with PID directory owner %i and reports same-owner access failures",
+  "preserves process-owner checks when a protected executable link has PID directory owner %i",
   async (directoryUid) => {
     const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
     const getuid = Object.getOwnPropertyDescriptor(process, "getuid");
@@ -183,8 +183,16 @@ it.each([0, 1000])(
     linuxProbe.rootOwnedDirectoryUid = directoryUid;
     linuxProbe.inspected = [];
     try {
-      expect(await runningGamePids("/test-executable")).toEqual([456]);
-      expect(linuxProbe.inspected).toEqual(["/proc/456/exe"]);
+      if (directoryUid === 1000) {
+        // A same-user process can have a root-owned executable link. Do not skip it.
+        await expect(runningGamePids("/test-executable")).rejects.toMatchObject({
+          code: "process_probe_failed",
+        });
+        expect(linuxProbe.inspected).toEqual(["/proc/123/exe"]);
+      } else {
+        expect(await runningGamePids("/test-executable")).toEqual([456]);
+        expect(linuxProbe.inspected).toEqual(["/proc/456/exe"]);
+      }
       linuxProbe.inaccessible = true;
       await expect(runningGamePids("/test-executable")).rejects.toMatchObject({
         code: "process_probe_failed",
