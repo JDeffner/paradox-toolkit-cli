@@ -1,7 +1,5 @@
 <img src="https://raw.githubusercontent.com/JDeffner/paradox-toolkit-cli/main/assets/branding/pxcli-icon-256.png" alt="PXCLI icon" width="96" height="96" />
 
-# pxtk
-
 Standalone commands and local MCP tools for Paradox modding. Look up game documentation and mod definitions, inspect dependencies, and check saved mod files with the Toolkit language server and Tiger. VS Code is optional. This project has its own repository and package; it shares its game knowledge and core tools with the [Paradox Modding Toolkit](https://github.com/JDeffner/paradox-modding-toolkit).
 
 The [project wiki](https://github.com/JDeffner/paradox-toolkit-cli/wiki) covers setup, commands, MCP clients, editing workflows and known limits.
